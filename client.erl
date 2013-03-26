@@ -2,30 +2,19 @@
 
 -export([start/0]).
 
--export([
-    start_process/1,
-    accept/1
-]).
+-export([start_process/1]).
 
--include("utils.erl").
+-include("utils.hrl").
+-include("config.hrl").
 
 
 
 
 start() ->
-    {LocalIP, LocalPort, _, _} = utils:get_config(),
-    Options = utils:options(LocalIP),
-
-    {ok, Socket} = gen_tcp:listen(LocalPort, Options),
-    io:format("Porxy listen on ~p:~p~n", [LocalIP, LocalPort]),
+    io:format("~p~n", [?OPTIONS(?GETADDR(?LOCALIP))]),
+    {ok, Socket} = gen_tcp:listen(?LOCALPORT, ?OPTIONS(?GETADDR(?LOCALIP))),
+    io:format("Porxy listen on ~p:~p~n", [?LOCALIP, ?LOCALPORT]),
     accept(Socket).
-    % lists:foreach(
-    %     fun(_) ->
-    %         spawn(?MODULE, accept, [Socket])
-    %     end,
-    %     [1,1,1,1]
-    % ),
-    % ok.
 
 
 accept(Socket) ->
@@ -38,29 +27,24 @@ accept(Socket) ->
 start_process(Client) ->
     io:format("~nstart process: ~p~n", [Client]),
 
-    {_LocalIP, _LocalPort, RemoteIP, RemotePort} = utils:get_config(),
-
-    case gen_tcp:connect(RemoteIP, RemotePort, utils:options()) of
+    case gen_tcp:connect(?GETADDR(?REMOTEIP), ?REMOTEPORT, ?OPTIONS) of
         {ok, RemoteSocket} ->
-            go_on(Client, RemoteSocket);
+            communicate(Client, RemoteSocket);
         {error, Error} ->
-            io:format("Connect error, ~p. ~p:~p~n", [Error, RemoteIP, RemotePort]),
+            io:format("Connect error, ~p. ~p:~p~n", [Error, ?REMOTEIP, ?REMOTEPORT]),
             gen_tcp:close(Client),
             exit("connect error")
     end.
 
 
 
-go_on(Client, RemoteSocket) ->
-    {LocalIP, LocalPort, _, _} = get_config(),
-
+communicate(Client, RemoteSocket) ->
     Target = find_target(Client),
     ok = gen_tcp:send(RemoteSocket, Target),
 
-    IP = list_to_binary(tuple_to_list(LocalIP)),
-    BackData = <<5, 0, 0, 1, IP/binary, LocalPort:16>>,
+    IP = list_to_binary(tuple_to_list(?GETADDR(?LOCALIP))),
+    BackData = <<5, 0, 0, 1, IP/binary, ?LOCALPORT:16>>,
     ok = gen_tcp:send(Client, BackData),
-
 
 
     case gen_tcp:recv(RemoteSocket, 1) of
