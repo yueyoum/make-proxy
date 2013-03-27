@@ -1,4 +1,4 @@
-
+-define(TIMEOUT, 6000).
 -define(LOCALIP, "127.0.0.1").
 -define(LOCALPORT, 7070).
 -define(REMOTEIP, "x.x.x.x").

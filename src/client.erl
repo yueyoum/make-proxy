@@ -51,7 +51,7 @@ communicate(Client, RemoteSocket) ->
     IP = list_to_binary(tuple_to_list(?GETADDR(?LOCALIP))),
     ok = gen_tcp:send(Client, <<5, 0, 0, 1, IP/binary, ?LOCALPORT:16>>),
 
-    case gen_tcp:recv(Client, 0) of
+    case gen_tcp:recv(Client, 0, ?TIMEOUT) of
         {ok, Request} ->
             TargetLen = byte_size(Target),
             Data = <<TargetLen:16, Target/binary, Request/binary>>,
@@ -97,7 +97,7 @@ transfer(Client, RemoteSocket) ->
         {ok, Data} ->
             gen_tcp:send(Client, Data),
             transfer(Client, RemoteSocket);
-        {error, Error} ->
+        {error, _Error} ->
             % io:format("RECEIVE REMOTE ERROR... ~p~n", [Error]),
             gen_tcp:close(Client),
             gen_tcp:close(RemoteSocket)

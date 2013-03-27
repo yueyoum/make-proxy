@@ -35,7 +35,7 @@ start_process(Client) ->
     case gen_tcp:recv(Client, 2) of
         {ok, <<TargetLen:16>>} ->
             parse_target(TargetLen, Client);
-        {error, Error} ->
+        {error, _Error} ->
             gen_tcp:close(Client)
     end.
 
@@ -53,33 +53,55 @@ parse_target(TargetLen, Client) ->
             binary_to_list(Destination)
     end,
 
-
     io:format("Address: ~p, Port: ~p~n", [Address, Port]),
 
-
-    case gen_tcp:connect(Address, Port, ?OPTIONS, 8000) of
+    case connect_target(Address, Port, 3) of
         {ok, TargetSocket} ->
             ok = gen_tcp:send(TargetSocket, Request),
             transfer(Client, TargetSocket);
-        {error, Error} ->
-            io:format("connect error: ~p:~p ~p~n", [Address, Port, Error]),
-            % gen_tcp:close(TargetSocket),
+        error ->
             gen_tcp:close(Client)
     end,
-
-
     io:format("process die!~n", []).
+
+
+
+connect_target(_, _, 0) ->
+    error;
+connect_target(Address, Port, Times) ->
+    case gen_tcp:connect(Address, Port, ?OPTIONS, ?TIMEOUT) of
+        {ok, TargetSocket} ->
+            {ok, TargetSocket};
+        {error, _Error} ->
+            io:format("CONNECT ERROR, retry...~p~n", [Times]),
+            connect_target(Address, Port, Times-1)
+    end.
+
+
+
+    % case gen_tcp:connect(Address, Port, ?OPTIONS, 8000) of
+    %     {ok, TargetSocket} ->
+    %         ok = gen_tcp:send(TargetSocket, Request),
+    %         transfer(Client, TargetSocket);
+    %     {error, Error} ->
+    %         io:format("connect error: ~p:~p ~p~n", [Address, Port, Error]),
+    %         % gen_tcp:close(TargetSocket),
+    %         gen_tcp:close(Client)
+    % end,
+
+
+    % io:format("process die!~n", []).
 
 
 
 
 transfer(Client, Remote) ->
-    case gen_tcp:recv(Remote, 0) of 
+    io:format("transfer...", []),
+    case gen_tcp:recv(Remote, 0, ?TIMEOUT) of 
         {ok, Data} ->
             ok = gen_tcp:send(Client, Data),
             transfer(Client, Remote);
-        {error, Error} ->
-            % io:format("remote recv error: ~p~n", [Error]),
+        {error, _Error} ->
             gen_tcp:close(Client),
             gen_tcp:close(Remote)
     end.
