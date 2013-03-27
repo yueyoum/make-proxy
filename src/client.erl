@@ -14,13 +14,7 @@
 start() ->
     {ok, Socket} = gen_tcp:listen(?LOCALPORT, ?OPTIONS(?GETADDR(?LOCALIP))),
     io:format("Porxy listen on ~p:~p~n", [?LOCALIP, ?LOCALPORT]),
-    % accept(Socket).
-    lists:foreach(
-        fun(_) ->
-            spawn(?MODULE, accept, [Socket])
-        end,
-        lists:seq(1,5)
-    ).
+    accept(Socket).
 
 
 accept(Socket) ->
@@ -57,8 +51,7 @@ communicate(Client, RemoteSocket) ->
             Data = <<TargetLen:16, Target/binary, Request/binary>>,
             ok = gen_tcp:send(RemoteSocket, Data),
             transfer(Client, RemoteSocket);
-        {error, Error} ->
-            io:format("GET REQUEST ERROR: ~p~n", [Error]),
+        {error, _Error} ->
             gen_tcp:close(RemoteSocket),
             gen_tcp:close(Client)
     end,
@@ -98,7 +91,6 @@ transfer(Client, RemoteSocket) ->
             gen_tcp:send(Client, Data),
             transfer(Client, RemoteSocket);
         {error, _Error} ->
-            % io:format("RECEIVE REMOTE ERROR... ~p~n", [Error]),
             gen_tcp:close(Client),
             gen_tcp:close(RemoteSocket)
     end.
