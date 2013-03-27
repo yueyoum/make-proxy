@@ -11,7 +11,7 @@
 -include("utils.hrl").
 -include("config.hrl").
 
--define(WORKER_NUMS, 20).
+-define(WORKER_NUMS, 30).
 -define(WORKER_TIMEOUT, 300000).
 
 
@@ -98,7 +98,8 @@ start_process(Client) ->
             parse_target(TargetLen, Client);
         {error, _Error} ->
             gen_tcp:close(Client)
-    end.
+    end,
+    ok.
 
 
 parse_target(TargetLen, Client) ->
@@ -118,6 +119,7 @@ parse_target(TargetLen, Client) ->
 
     case connect_target(Address, Port, 3) of
         {ok, TargetSocket} ->
+            inet:setopts(TargetSocket, [{active, true}]),
             ok = gen_tcp:send(TargetSocket, Request),
             transfer(Client, TargetSocket);
         error ->
@@ -138,12 +140,17 @@ connect_target(Address, Port, Times) ->
 
 
 
+
 transfer(Client, Remote) ->
-    case gen_tcp:recv(Remote, 0, ?TIMEOUT) of 
-        {ok, Data} ->
+    receive
+        {tcp, Remote, Data} ->
             ok = gen_tcp:send(Client, Data),
             transfer(Client, Remote);
-        {error, _Error} ->
-            gen_tcp:close(Client),
-            gen_tcp:close(Remote)
+        {tcp_closed, Remote} ->
+            gen_tcp:close(Client);
+        {tcp_error, Remote, _Reason} ->
+            gen_tcp:close(Client)
+    % after ?TIMEOUT ->
+    %     io:format("TIMEOUT"),
+    %     gen_tcp:close(Client)
     end.

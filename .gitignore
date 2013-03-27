@@ -1,3 +1,5 @@
+*.swp
+*.bak
 *.beam
 *.dump
 config.hrl

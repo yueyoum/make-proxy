@@ -27,6 +27,7 @@ accept(Socket) ->
 start_process(Client) ->
     case gen_tcp:connect(?GETADDR(?REMOTEIP), ?REMOTEPORT, ?OPTIONS) of
         {ok, RemoteSocket} ->
+            ok = inet:setopts(RemoteSocket, [{active, true}]),
             communicate(Client, RemoteSocket);
         {error, Error} ->
             io:format("Connect error, ~p. ~p:~p~n", [Error, ?REMOTEIP, ?REMOTEPORT]),
@@ -50,7 +51,7 @@ communicate(Client, RemoteSocket) ->
             ok = gen_tcp:send(RemoteSocket, Data),
             transfer(Client, RemoteSocket);
         {error, _Error} ->
-            gen_tcp:close(RemoteSocket),
+            % gen_tcp:close(RemoteSocket),
             gen_tcp:close(Client)
     end.
 
@@ -81,14 +82,13 @@ find_target(Client) ->
 
 
 transfer(Client, RemoteSocket) ->
-    case gen_tcp:recv(RemoteSocket, 0) of
-        {ok, Data} ->
+    receive
+        {tcp, RemoteSocket, Data} ->
             gen_tcp:send(Client, Data),
             transfer(Client, RemoteSocket);
-        {error, _Error} ->
-            gen_tcp:close(Client),
-            gen_tcp:close(RemoteSocket)
+        {tcp_closed, RemoteSocket} ->
+            gen_tcp:close(Client);
+        {tcp_error, RemoteSocket, _Reason} ->
+            gen_tcp:close(Client)
     end.
-
-
 
