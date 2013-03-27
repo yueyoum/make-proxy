@@ -25,8 +25,6 @@ accept(Socket) ->
 
 
 start_process(Client) ->
-    io:format("start process: ~p~n", [Client]),
-
     case gen_tcp:connect(?GETADDR(?REMOTEIP), ?REMOTEPORT, ?OPTIONS) of
         {ok, RemoteSocket} ->
             communicate(Client, RemoteSocket);
@@ -54,10 +52,7 @@ communicate(Client, RemoteSocket) ->
         {error, _Error} ->
             gen_tcp:close(RemoteSocket),
             gen_tcp:close(Client)
-    end,
-
-
-    io:format("process die!~n", []).
+    end.
 
 
 

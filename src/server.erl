@@ -12,7 +12,7 @@
 -include("config.hrl").
 
 -define(WORKER_NUMS, 20).
--define(WORKER_TIMEOUT, 120000).
+-define(WORKER_TIMEOUT, 300000).
 
 
 start() ->
@@ -66,11 +66,7 @@ manage_works(choose, [], ClientSock) ->
 
 manage_works(choose, [Pid | Tail], ClientSock) ->
     Pid ! {connect, ClientSock},
-    io:format("Using Pid from pool: ~p~n", [Pid]),
-    {NewPid, _NewRef} = spawn_monitor(?MODULE, start_process, []),
-    %% MUST place the new Pid at the tail of list,
-    %% this can ensure that the old pid can by used.
-    Tail ++ [NewPid];
+    Tail;
 
 manage_works(timeout, Works, Pid) ->
     io:format("Clear timeout pid: ~p~n", [Pid]),
@@ -83,7 +79,6 @@ manage_works(reuse, Works, Pid) ->
 
 
 start_process() ->
-    io:format("start process~n", []),
     receive
         {connect, Client} -> 
             start_process(Client),
@@ -127,8 +122,7 @@ parse_target(TargetLen, Client) ->
             transfer(Client, TargetSocket);
         error ->
             gen_tcp:close(Client)
-    end,
-    io:format("process die!~n", []).
+    end.
 
 
 
