@@ -1,5 +1,0 @@
-
--define(LOCALIP, "127.0.0.1").
--define(LOCALPORT, 7070).
--define(REMOTEIP, "x.x.x.x").
--define(REMOTEPORT, 0).
