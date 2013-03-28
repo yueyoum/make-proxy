@@ -8,11 +8,8 @@
 		binary,
 		{reuseaddr, true},
 		{active, false},
-		{nodelay, true},
-		{recbuf, 32768},
-		{sndbuf, 32768},
-		{packet_size, 32768}]
-		).
+		{nodelay, true}
+        ]).
 
 -define(OPTIONS(IP), [{ip, IP} | ?OPTIONS]).
 

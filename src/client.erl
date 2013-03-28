@@ -19,7 +19,8 @@ start() ->
 
 accept(Socket) ->
     {ok, Client} = gen_tcp:accept(Socket),
-    spawn(?MODULE, start_process, [Client]),
+    Pid = spawn(?MODULE, start_process, [Client]),
+    ok = gen_tcp:controlling_process(Client, Pid),
     accept(Socket).
 
 
@@ -39,21 +40,44 @@ start_process(Client) ->
 
 communicate(Client, RemoteSocket) ->
     Target = find_target(Client),
+    ok = inet:setopts(Client, [{active, true}]),
+
+    ok = gen_tcp:send(RemoteSocket, Target),
 
 
     IP = list_to_binary(tuple_to_list(?GETADDR(?LOCALIP))),
     ok = gen_tcp:send(Client, <<5, 0, 0, 1, IP/binary, ?LOCALPORT:16>>),
 
-    case gen_tcp:recv(Client, 0, ?TIMEOUT) of
-        {ok, Request} ->
-            TargetLen = byte_size(Target),
-            Data = <<TargetLen:16, Target/binary, Request/binary>>,
-            ok = gen_tcp:send(RemoteSocket, Data),
+    transfer(Client, RemoteSocket).
+
+
+
+
+
+transfer(Client, RemoteSocket) ->
+    receive
+        {tcp, Client, Request} ->
+            ok = gen_tcp:send(RemoteSocket, Request),
             transfer(Client, RemoteSocket);
-        {error, _Error} ->
-            % gen_tcp:close(RemoteSocket),
-            gen_tcp:close(Client)
-    end.
+        {tcp, RemoteSocket, Response} ->
+            ok = gen_tcp:send(Client, Response),
+            transfer(Client, RemoteSocket);
+        {tcp_closed, Client} ->
+            ok;
+        {tcp_error, Client, _Reason} ->
+            io:format("client error~n", []),
+            ok;
+        {tcp_closed, RemoteSocket} ->
+            ok;
+        {tcp_error, RemoteSocket, _Reason} ->
+            io:format("remote error~n", []),
+            ok
+    end,
+
+    gen_tcp:close(RemoteSocket),
+    gen_tcp:close(Client),
+    ok.
+
 
 
 
@@ -68,27 +92,18 @@ find_target(Client) ->
 
     case AType of
         ?IPV4 ->
-            {ok, Address} = gen_tcp:recv(Client, 4),
+            {ok, <<Address:32>>} = gen_tcp:recv(Client, 4),
             {ok, <<Port:16>>} = gen_tcp:recv(Client, 2),
-            <<?IPV4, Port:16, Address/binary>>;
+            <<?IPV4, Port:16, Address:32>>;
+        ?IPV6 ->
+            {ok, <<Address:128>>} = gen_tcp:recv(Client, 16),
+            {ok, <<Port:16>>} = gen_tcp:recv(Client, 2),
+            <<?IPV6, Port:16, Address:128>>;
         ?DOMAIN ->
             {ok, <<DomainLen:8>>} = gen_tcp:recv(Client, 1),
             {ok, <<DomainBin/binary>>} = gen_tcp:recv(Client, DomainLen),
             {ok, <<Port:16>>} = gen_tcp:recv(Client, 2),
-            <<?DOMAIN, Port:16, DomainBin/binary>>
+            <<?DOMAIN, Port:16, DomainLen:8, DomainBin/binary>>
     end.
 
-
-
-
-transfer(Client, RemoteSocket) ->
-    receive
-        {tcp, RemoteSocket, Data} ->
-            gen_tcp:send(Client, Data),
-            transfer(Client, RemoteSocket);
-        {tcp_closed, RemoteSocket} ->
-            gen_tcp:close(Client);
-        {tcp_error, RemoteSocket, _Reason} ->
-            gen_tcp:close(Client)
-    end.
 

@@ -18,13 +18,21 @@
 start() ->
     {ok, Socket} = gen_tcp:listen(?REMOTEPORT, ?OPTIONS({0,0,0,0})),
     io:format("Server listen on ~p~n", [?REMOTEPORT]),
+    register(gate, self()),
     register(server, spawn(?MODULE, start_server, [])),
     accept(Socket).
 
 
 accept(Socket) ->
     {ok, Client} = gen_tcp:accept(Socket),
-    server ! {connect, Client},
+    server ! choosepid,
+    receive
+        {ok, Pid} ->
+            ok = gen_tcp:controlling_process(Client, Pid),
+            Pid ! {connect, Client}
+        after ?TIMEOUT ->
+            gen_tcp:close(Client)
+    end,
     accept(Socket).
 
 
@@ -36,8 +44,8 @@ start_server() ->
 start_server(Works) ->
     NewWorks =
     receive
-        {connect, ClientSock} ->
-            manage_works(choose, Works, ClientSock);
+        choosepid ->
+            manage_works(choosepid, Works);
         {'DOWN', _Ref, process, Pid, timeout} ->
             manage_works(timeout, Works, Pid);
         {reuse, Pid} ->
@@ -58,15 +66,17 @@ start_works(Num, Works) ->
 
 
 
-manage_works(choose, [], ClientSock) ->
-    %% no available for chosen, make new one
-    {Pid, _Ref} = spawn_monitor(?MODULE, start_process, []),
-    Pid ! {connect, ClientSock},
-    start_works(?WORKER_NUMS);
 
-manage_works(choose, [Pid | Tail], ClientSock) ->
-    Pid ! {connect, ClientSock},
+
+
+manage_works(choosepid, []) ->
+    [Head | Tail] = start_works(?WORKER_NUMS),
+    gate ! {ok, Head},
     Tail;
+
+manage_works(choosepid, [Head | Tail]) ->
+    gate ! {ok, Head},
+    Tail.
 
 manage_works(timeout, Works, Pid) ->
     io:format("Clear timeout pid: ~p~n", [Pid]),
@@ -76,6 +86,7 @@ manage_works(reuse, Works, Pid) ->
     io:format("Reuse Pid, back to pool: ~p~n", [Pid]),
     Works ++ [Pid].
     
+
 
 
 start_process() ->
@@ -93,34 +104,34 @@ start_process() ->
 
 
 start_process(Client) ->
-    case gen_tcp:recv(Client, 2) of
-        {ok, <<TargetLen:16>>} ->
-            parse_target(TargetLen, Client);
+    case gen_tcp:recv(Client, 1) of
+        {ok, <<?IPV4>>} ->
+            {ok, <<Port:16, Destination:32>>} = gen_tcp:recv(Client, 6),
+            Address = list_to_tuple( binary_to_list(Destination) ),
+            communicate(Client, Address, Port);
+        {ok, <<?IPV6>>} ->
+            {ok, <<Port:16, Destination:128>>} = gen_tcp:recv(Client, 18),
+            Address = list_to_tuple( binary_to_list(Destination) ),
+            communicate(Client, Address, Port);
+        {ok, <<?DOMAIN>>} ->
+            {ok, <<Port:16, DomainLen:8>>} = gen_tcp:recv(Client, 3),
+            {ok, <<Destination/binary>>} = gen_tcp:recv(Client, DomainLen),
+            Address = binary_to_list(Destination),
+            communicate(Client, Address, Port);
         {error, _Error} ->
+            io:format("start recv client error: ~p~n", [_Error]),
             gen_tcp:close(Client)
     end,
     ok.
 
 
-parse_target(TargetLen, Client) ->
-    {ok, <<Type:8, Port:16, Destination/binary>>} = gen_tcp:recv(Client, TargetLen),
-    {ok, <<Request/binary>>} = gen_tcp:recv(Client, 0),
-
-
-    Address = 
-    case Type of
-        ?IPV4 ->
-            list_to_tuple( binary_to_list(Destination) );
-        ?DOMAIN ->
-            binary_to_list(Destination)
-    end,
-
+communicate(Client, Address, Port) ->
     io:format("Address: ~p, Port: ~p~n", [Address, Port]),
 
-    case connect_target(Address, Port, 3) of
+    case connect_target(Address, Port, ?CONNECT_RETRY_TIMES) of
         {ok, TargetSocket} ->
-            inet:setopts(TargetSocket, [{active, true}]),
-            ok = gen_tcp:send(TargetSocket, Request),
+            ok = inet:setopts(TargetSocket, [{active, true}]),
+            ok = inet:setopts(Client, [{active, true}]),
             transfer(Client, TargetSocket);
         error ->
             gen_tcp:close(Client)
@@ -141,16 +152,27 @@ connect_target(Address, Port, Times) ->
 
 
 
+
 transfer(Client, Remote) ->
     receive
-        {tcp, Remote, Data} ->
-            ok = gen_tcp:send(Client, Data),
+        {tcp, Client, Request} ->
+            ok = gen_tcp:send(Remote, Request),
             transfer(Client, Remote);
+        {tcp, Remote, Response} ->
+            ok = gen_tcp:send(Client, Response),
+            transfer(Client, Remote);
+        {tcp_closed, Client} ->
+            ok;
         {tcp_closed, Remote} ->
-            gen_tcp:close(Client);
+            ok;
+        {tcp_error, Client, _Reason} ->
+            ok;
         {tcp_error, Remote, _Reason} ->
-            gen_tcp:close(Client)
-    % after ?TIMEOUT ->
-    %     io:format("TIMEOUT"),
-    %     gen_tcp:close(Client)
-    end.
+            ok
+    end,
+
+    gen_tcp:close(Remote),
+    gen_tcp:close(Client),
+    ok.
+
+
