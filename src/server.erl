@@ -11,13 +11,23 @@
 -include("utils.hrl").
 -include("config.hrl").
 
+-define(CONNECT_RETRY_TIMES, 3).
 -define(WORKER_NUMS, 30).
 -define(WORKER_TIMEOUT, 300000).
 
 
+-ifdef(debug).
+-define(LOG(Msg, Args), io:format(Msg, Args)).
+-else.
+-define(LOG(Msg, Args), true).
+-endif.
+
+
+
+
 start() ->
     {ok, Socket} = gen_tcp:listen(?REMOTEPORT, ?OPTIONS({0,0,0,0})),
-    io:format("Server listen on ~p~n", [?REMOTEPORT]),
+    ?LOG("Server listen on ~p~n", [?REMOTEPORT]),
     register(gate, self()),
     register(server, spawn(?MODULE, start_server, [])),
     accept(Socket).
@@ -79,11 +89,11 @@ manage_works(choosepid, [Head | Tail]) ->
     Tail.
 
 manage_works(timeout, Works, Pid) ->
-    io:format("Clear timeout pid: ~p~n", [Pid]),
+    ?LOG("Clear timeout pid: ~p~n", [Pid]),
     lists:delete(Pid, Works);
 
 manage_works(reuse, Works, Pid) ->
-    io:format("Reuse Pid, back to pool: ~p~n", [Pid]),
+    ?LOG("Reuse Pid, back to pool: ~p~n", [Pid]),
     Works ++ [Pid].
     
 
@@ -134,6 +144,7 @@ communicate(Client, Address, Port) ->
             ok = inet:setopts(Client, [{active, true}]),
             transfer(Client, TargetSocket);
         error ->
+            ?LOG("Connect Address Error: ~p:~p~n", [Address, Port]),
             gen_tcp:close(Client)
     end.
 

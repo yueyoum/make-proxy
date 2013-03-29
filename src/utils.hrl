@@ -4,8 +4,7 @@
 -define(DOMAIN, 16#03).
 
 -define(OPTIONS,
-		[inet,
-		binary,
+		[binary,
 		{reuseaddr, true},
 		{active, false},
 		{nodelay, true}
