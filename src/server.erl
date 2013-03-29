@@ -115,28 +115,44 @@ start_process() ->
 
 start_process(Client) ->
     case gen_tcp:recv(Client, 1) of
-        {ok, <<?IPV4>>} ->
-            {ok, <<Port:16, Destination:32>>} = gen_tcp:recv(Client, 6),
-            Address = list_to_tuple( binary_to_list(Destination) ),
-            communicate(Client, Address, Port);
-        {ok, <<?IPV6>>} ->
-            {ok, <<Port:16, Destination:128>>} = gen_tcp:recv(Client, 18),
-            Address = list_to_tuple( binary_to_list(Destination) ),
-            communicate(Client, Address, Port);
-        {ok, <<?DOMAIN>>} ->
-            {ok, <<Port:16, DomainLen:8>>} = gen_tcp:recv(Client, 3),
-            {ok, <<Destination/binary>>} = gen_tcp:recv(Client, DomainLen),
-            Address = binary_to_list(Destination),
-            communicate(Client, Address, Port);
+        {ok, Data} ->
+            parse_address(Client, transform:transform(Data));
         {error, _Error} ->
-            io:format("start recv client error: ~p~n", [_Error]),
+            ?LOG("start recv client error: ~p~n", [_Error]),
             gen_tcp:close(Client)
     end,
     ok.
 
 
+
+parse_address(Client, AType) when AType =:= <<?IPV4>> ->
+    {ok, Data} = gen_tcp:recv(Client, 6),
+    {<<Port:16, Destination:32>>} = transform:transform(Data),
+    Address = list_to_tuple( binary_to_list(Destination) ),
+    communicate(Client, Address, Port);
+
+parse_address(Client, AType) when AType =:= <<?IPV6>> ->
+    {ok, Data} = gen_tcp:recv(Client, 18),
+    <<Port:16, Destination:128>> = transform:transform(Data),
+    Address = list_to_tuple( binary_to_list(Destination) ),
+    communicate(Client, Address, Port);
+
+
+parse_address(Client, AType) when AType =:= <<?DOMAIN>> ->
+    {ok, Data} = gen_tcp:recv(Client, 3),
+    <<Port:16, DomainLen:8>> = transform:transform(Data),
+
+    {ok, DataRest} = gen_tcp:recv(Client, DomainLen),
+    Destination = transform:transform(DataRest),
+
+    Address = binary_to_list(Destination),
+    communicate(Client, Address, Port).
+
+
+
+
 communicate(Client, Address, Port) ->
-    io:format("Address: ~p, Port: ~p~n", [Address, Port]),
+    ?LOG("Address: ~p, Port: ~p~n", [Address, Port]),
 
     case connect_target(Address, Port, ?CONNECT_RETRY_TIMES) of
         {ok, TargetSocket} ->
@@ -167,10 +183,10 @@ connect_target(Address, Port, Times) ->
 transfer(Client, Remote) ->
     receive
         {tcp, Client, Request} ->
-            ok = gen_tcp:send(Remote, Request),
+            ok = gen_tcp:send(Remote, transform:transform(Request)),
             transfer(Client, Remote);
         {tcp, Remote, Response} ->
-            ok = gen_tcp:send(Client, Response),
+            ok = gen_tcp:send(Client, transform:transform(Response)),
             transfer(Client, Remote);
         {tcp_closed, Client} ->
             ok;

@@ -42,7 +42,7 @@ communicate(Client, RemoteSocket) ->
     Target = find_target(Client),
     ok = inet:setopts(Client, [{active, true}]),
 
-    ok = gen_tcp:send(RemoteSocket, Target),
+    ok = gen_tcp:send(RemoteSocket, transform:transform(Target)),
 
 
     IP = list_to_binary(tuple_to_list(?GETADDR(?LOCALIP))),
@@ -57,10 +57,10 @@ communicate(Client, RemoteSocket) ->
 transfer(Client, RemoteSocket) ->
     receive
         {tcp, Client, Request} ->
-            ok = gen_tcp:send(RemoteSocket, Request),
+            ok = gen_tcp:send(RemoteSocket, transform:transform(Request)),
             transfer(Client, RemoteSocket);
         {tcp, RemoteSocket, Response} ->
-            ok = gen_tcp:send(Client, Response),
+            ok = gen_tcp:send(Client, transform:transform(Response)),
             transfer(Client, RemoteSocket);
         {tcp_closed, Client} ->
             ok;
