@@ -12,15 +12,13 @@
 -include("config.hrl").
 
 -define(CONNECT_RETRY_TIMES, 2).
--define(WORKER_NUMS, 20).
--define(WORKER_TIMEOUT, 60000).
+-define(WORKER_NUMS, 30).
+-define(WORKER_TIMEOUT, 600000).
 
 
 %% WORKER_NUMS    - how many process will spawn when server start
 %% WORKER_TIMEOUT - an available process will exit after this timeout ,
 %%                  this is used for reduce the spawned work process.
-%%                  NOTE, the bigger the WORKER_TIMEOUT, 
-%%                        maybe the bigger the memory usage.
 
 
 
@@ -172,8 +170,6 @@ communicate(Client, Address, Port) ->
 
     case connect_target(Address, Port, ?CONNECT_RETRY_TIMES) of
         {ok, TargetSocket} ->
-            ok = inet:setopts(TargetSocket, [{active, true}]),
-            ok = inet:setopts(Client, [{active, true}]),
             transfer(Client, TargetSocket);
         error ->
             ?LOG("Connect Address Error: ~p:~p~n", [Address, Port]),
@@ -197,6 +193,8 @@ connect_target(Address, Port, Times) ->
 
 
 transfer(Client, Remote) ->
+    inet:setopts(Remote, [{active, once}]),
+    inet:setopts(Client, [{active, once}]),
     receive
         {tcp, Client, Request} ->
             case gen_tcp:send(Remote, transform:transform(Request)) of
