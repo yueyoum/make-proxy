@@ -197,11 +197,20 @@ connect_target(Address, Port, Times) ->
 transfer(Client, Remote) ->
     receive
         {tcp, Client, Request} ->
-            ok = gen_tcp:send(Remote, transform:transform(Request)),
-            transfer(Client, Remote);
+            case gen_tcp:send(Remote, transform:transform(Request)) of
+                ok ->
+                    transfer(Client, Remote);
+                {error, _Error} ->
+                    ok
+            end;
         {tcp, Remote, Response} ->
-            ok = gen_tcp:send(Client, transform:transform(Response)),
-            transfer(Client, Remote);
+            %% client maybe close the connection when data transferring
+            case gen_tcp:send(Client, transform:transform(Response)) of
+                ok ->
+                    transfer(Client, Remote);
+                {error, _Error} ->
+                    ok
+            end;
         {tcp_closed, Client} ->
             ok;
         {tcp_closed, Remote} ->
