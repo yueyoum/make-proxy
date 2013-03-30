@@ -4,22 +4,31 @@
 
 This project can take you through a Firewall using Socks5 proxy.
 
+#### Features
+
 with the great erlang, the project has the following features:
 
-*   robustness. nerver down.
-*   scalable. handler thousands requests at the same time easily.
-*   lightweight. 
+*   robustness. never down.
+*   scalable. handle thousands requests at the same time easily.
+*   fast.
 
-    In my daily using, Play a youtube 720P vedio, bellow is the system status.
+#### Running status
 
-    Linode 4 cpus, 512 RAM VPS.
+In my daily use, Play a youtube **720P** vedio, bellow is the system status.
 
-    ![system status](http://i1297.photobucket.com/albums/ag23/yueyoum/uuu_zpsd70d73bb.png)
+Linode 4 cpus, 512 RAM VPS.
+
+**Update**
+
+this maybe different for different length 720P vedios.
+Short will only takes 20MB ram, But a long one, will take almost 150MB.
+
+![system status](http://i1297.photobucket.com/albums/ag23/yueyoum/uuu_zpsd70d73bb.png)
 
 
 
 
-#### illustrate
+#### Illustrate
 
 ```
 +-----------+            +--------------+   encrypt
