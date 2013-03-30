@@ -14,19 +14,20 @@ with the great erlang, the project has the following features:
 
 *   Fast.
 
-*   Lightweight. only needs about 30MB memories.
+*   Lightweight. only needs at most 30MB memories.
 
 
 ### Running status
 
 In my daily use, 
 
-*   When server is idle, It's only takes about 15MB ~ 20MB memories.
+*   When server is idle, It's only takes about 10MB memories.
 
-*   Play a youtube **1080P** vedio, and load some other websites at the same time,
+*   Play a youtube **1080P** video, and load some other websites at the same time,
     It only takes 20MB ~ 30MB memories.
 
-    Bellow is the system status.
+    Below is the system status when play a youtube **1080P** video.
+    Notice the `beam.smp` process below of `mysqld`.
 
     Linode 4 cpus, 512 RAM VPS.
 
