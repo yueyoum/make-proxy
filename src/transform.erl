@@ -6,7 +6,7 @@
 -define(SIGN, 2#01111001).
 
 
-%% this module used for mess the data which will transfer on in internet.
+%% this module used for mess the data which will transfer on internet.
 
 
 transform(Data) ->

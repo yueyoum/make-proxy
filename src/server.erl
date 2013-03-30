@@ -13,7 +13,13 @@
 
 -define(CONNECT_RETRY_TIMES, 3).
 -define(WORKER_NUMS, 30).
--define(WORKER_TIMEOUT, 300000).
+-define(WORKER_TIMEOUT, 600000).
+
+
+%% WORKER_NUMS    - how many process will spawn when server start
+%% WORKER_TIMEOUT - an available process will exit after this timeout ,
+%%                  this is used for reduce the spawned work process.
+
 
 
 -ifdef(debug).
@@ -94,6 +100,9 @@ manage_works(timeout, Works, Pid) ->
 
 manage_works(reuse, Works, Pid) ->
     ?LOG("Reuse Pid, back to pool: ~p~n", [Pid]),
+
+    %% this reused pid MUST put at the tail or works list,
+    %% for other works can be chosen and use.
     Works ++ [Pid].
     
 
@@ -146,7 +155,12 @@ parse_address(Client, AType) when AType =:= <<?DOMAIN>> ->
     Destination = transform:transform(DataRest),
 
     Address = binary_to_list(Destination),
-    communicate(Client, Address, Port).
+    communicate(Client, Address, Port);
+
+parse_address(Client, _AType) ->
+    %% receive the invalid data. close the connection
+    ?LOG("Invalid data!~n", []),
+    gen_tcp:close(Client).
 
 
 
