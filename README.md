@@ -14,17 +14,22 @@ with the great erlang, the project has the following features:
 
 ### Running status
 
-In my daily use, Play a youtube **720P** vedio, bellow is the system status.
+In my daily use, 
 
-Linode 4 cpus, 512 RAM VPS.
+*   Play a youtube **480P** vedio, and load some other websites at the same time,
+    It only takes 20MB ~ 30MB memories.
 
-**Update**
+*   Play a youtube **720P** vedio, bellow is the system status.
 
-this maybe different for different length 720P vedios.
-Short will only takes 20MB ram, But a long one, will take almost 140MB.
-[why takes so much memories](#why-takes-so-much-memories)
+    Linode 4 cpus, 512 RAM VPS.
 
-![system status](http://i1297.photobucket.com/albums/ag23/yueyoum/uuu_zpsd70d73bb.png)
+    **Update**
+
+    this maybe different for different length 720P vedios.
+    Short will only takes about 20MB ram, But a long one, will takes almost 140MB.
+    [why takes so much memories](#why-takes-so-much-memories)
+
+    ![system status](http://i1297.photobucket.com/albums/ag23/yueyoum/uuu_zpsd70d73bb.png)
 
 
 
