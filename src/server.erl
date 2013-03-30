@@ -12,13 +12,15 @@
 -include("config.hrl").
 
 -define(CONNECT_RETRY_TIMES, 3).
--define(WORKER_NUMS, 30).
--define(WORKER_TIMEOUT, 600000).
+-define(WORKER_NUMS, 20).
+-define(WORKER_TIMEOUT, 60000).
 
 
 %% WORKER_NUMS    - how many process will spawn when server start
 %% WORKER_TIMEOUT - an available process will exit after this timeout ,
 %%                  this is used for reduce the spawned work process.
+%%                  NOTE, the bigger the WORKER_TIMEOUT, 
+%%                        maybe the bigger the memory usage.
 
 
 
