@@ -22,7 +22,7 @@ Linode 4 cpus, 512 RAM VPS.
 
 this maybe different for different length 720P vedios.
 Short will only takes 20MB ram, But a long one, will take almost 140MB.
-[why takes so much memory]()
+[why takes so much memories](#why-takes-so-much-memories)
 
 ![system status](http://i1297.photobucket.com/albums/ag23/yueyoum/uuu_zpsd70d73bb.png)
 
@@ -96,13 +96,13 @@ PORT = `7070`  (if not changed in the src/config.hrl)
 
 
 
-## Why takes so mush memory
+## Why takes so much memories
 
 as mentioned above, Play youtube **720P** vedios will take at most 140MB memories.
 Why this?
 
 The server side has a `process pool`, 
-When A process finish it's job, It's not died directly, But waiting a WORKER_TIMEOUT times,
+When a process finish it's job, It's not died directly, But waiting a WORKER_TIMEOUT times,
 If in the WORKER_TIMEOUT, there is a new request comes to this process, 
 the process will work again, and when finish, waiting for new request in WORKER_TIMEOUT.
 
