@@ -4,6 +4,21 @@
 
 This project can take you through a Firewall using Socks5 proxy.
 
+with the great erlang, the project has the following features:
+
+*   robustness. nerver down.
+*   scalable. handler thousands requests at the same time easily.
+*   lightweight. 
+
+    In my daily using, Play a youtube 720P vedio, bellow is the system status.
+
+    Linode 4 cpus, 512 RAM VPS.
+
+    ![system status](http://i1297.photobucket.com/albums/ag23/yueyoum/uuu_zpsd70d73bb.png)
+
+
+
+
 #### illustrate
 
 ```
@@ -41,7 +56,7 @@ This project can take you through a Firewall using Socks5 proxy.
 
 #### Server side
 
-1.  `git clone https://github.com/yueyoum/make-proxy` or directly download.
+1.  `git clone https://github.com/yueyoum/make-proxy.git` or directly download.
 2.  `cp src/config.hrl.example src/config.hrl`
 
     You need to define the `REMOTEIP` and `REMOTEPORT`.
@@ -53,7 +68,7 @@ This project can take you through a Firewall using Socks5 proxy.
 
 #### Local side
 
-1.  same as the *Serve side*, checkout the code, and do the difinition *AS SAME AS* the server side
+1.  same as the *Serve side*, checkout the code, and do the difinition **AS SAME AS** the server side
 
 2.  `./start_client.sh`
 
@@ -64,4 +79,8 @@ IP = `127.0.0.1`
 
 PORT = `7070`  (if not changed in the src/config.hrl)
 
+
+## TODO
+
+1.  change the decrypt method, now is just  every byte do `bxor` with `2#01111001`
 
