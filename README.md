@@ -16,6 +16,8 @@ with the great erlang, the project has the following features:
 
 In my daily use, 
 
+*   When server is idle, It's only takes about 10M memories.
+
 *   Play a youtube **480P** vedio, and load some other websites at the same time,
     It only takes 20MB ~ 30MB memories.
 
