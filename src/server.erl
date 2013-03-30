@@ -11,7 +11,7 @@
 -include("utils.hrl").
 -include("config.hrl").
 
--define(CONNECT_RETRY_TIMES, 3).
+-define(CONNECT_RETRY_TIMES, 2).
 -define(WORKER_NUMS, 20).
 -define(WORKER_TIMEOUT, 60000).
 
@@ -138,13 +138,13 @@ start_process(Client) ->
 
 parse_address(Client, AType) when AType =:= <<?IPV4>> ->
     {ok, Data} = gen_tcp:recv(Client, 6),
-    {<<Port:16, Destination:32>>} = transform:transform(Data),
+    <<Port:16, Destination/binary>> = transform:transform(Data),
     Address = list_to_tuple( binary_to_list(Destination) ),
     communicate(Client, Address, Port);
 
 parse_address(Client, AType) when AType =:= <<?IPV6>> ->
     {ok, Data} = gen_tcp:recv(Client, 18),
-    <<Port:16, Destination:128>> = transform:transform(Data),
+    <<Port:16, Destination/binary>> = transform:transform(Data),
     Address = list_to_tuple( binary_to_list(Destination) ),
     communicate(Client, Address, Port);
 

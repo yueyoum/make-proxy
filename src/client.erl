@@ -39,14 +39,22 @@ start_process(Client) ->
 
 
 communicate(Client, RemoteSocket) ->
-    Target = find_target(Client),
-    ok = inet:setopts(Client, [{active, true}]),
+    try
+        Target = find_target(Client),
+        ok = inet:setopts(Client, [{active, true}]),
 
-    ok = gen_tcp:send(RemoteSocket, transform:transform(Target)),
+        ok = gen_tcp:send(RemoteSocket, transform:transform(Target)),
 
 
-    IP = list_to_binary(tuple_to_list(?GETADDR(?LOCALIP))),
-    ok = gen_tcp:send(Client, <<5, 0, 0, 1, IP/binary, ?LOCALPORT:16>>),
+        IP = list_to_binary(tuple_to_list(?GETADDR(?LOCALIP))),
+        ok = gen_tcp:send(Client, <<5, 0, 0, 1, IP/binary, ?LOCALPORT:16>>)
+    catch
+        Error:Reason ->
+            io:format("communicate error, ~p: ~p~n", [Error, Reason]),
+            gen_tcp:close(RemoteSocket),
+            gen_tcp:close(Client),
+            exit(communicateerror)
+    end,
 
     transfer(Client, RemoteSocket).
 
@@ -57,11 +65,19 @@ communicate(Client, RemoteSocket) ->
 transfer(Client, RemoteSocket) ->
     receive
         {tcp, Client, Request} ->
-            ok = gen_tcp:send(RemoteSocket, transform:transform(Request)),
-            transfer(Client, RemoteSocket);
+            case gen_tcp:send(RemoteSocket, transform:transform(Request)) of
+                ok ->
+                    transfer(Client, RemoteSocket);
+                {error, _Error} ->
+                    ok
+            end;
         {tcp, RemoteSocket, Response} ->
-            ok = gen_tcp:send(Client, transform:transform(Response)),
-            transfer(Client, RemoteSocket);
+            case gen_tcp:send(Client, transform:transform(Response)) of
+                ok ->
+                    transfer(Client, RemoteSocket);
+                {error, _Error} ->
+                    ok
+            end;
         {tcp_closed, Client} ->
             ok;
         {tcp_error, Client, _Reason} ->
