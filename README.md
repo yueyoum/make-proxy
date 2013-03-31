@@ -21,7 +21,7 @@ with the great erlang, the project has the following features:
 
 In my daily use, 
 
-*   When server is idle, It's only takes about 10MB memories.
+*   When server is idle, It only takes about 10MB memories.
 
 *   Play a youtube **1080P** video, and load some other websites at the same time,
     It only takes 20MB ~ 30MB memories.
@@ -85,7 +85,7 @@ In my daily use,
 
 ### Local side
 
-1.  same as the *Serve side*, checkout the code, and do the difinition **AS SAME AS** the server side
+1.  same as the *Server side*, checkout the code, and do the difinition **AS SAME AS** the server side
 
 2.  `./start_client.sh`
 
@@ -99,6 +99,6 @@ PORT = `7070`  (if not changed in the src/config.hrl)
 
 ## TODO
 
-1.  change the decrypt method, now is just  every byte do `bxor` with `2#01111001`
+1.  change the encrypt/decrypt method, now is just  every byte do `bxor` with `2#01111001`
 
 
