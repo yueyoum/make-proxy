@@ -3,3 +3,4 @@
 *.beam
 *.dump
 *.config
+*.log

@@ -3,7 +3,7 @@
     make_proxy_client,
     [
         {remote_addr, "127.0.0.1"},
-        {remote_port, 7072},
+        {remote_port, 7071},
         {local_addr, "127.0.0.1"},
         {port, 7070}
     ]    

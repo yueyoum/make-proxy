@@ -27,6 +27,7 @@
 %% @end
 %%--------------------------------------------------------------------
 start(_StartType, _StartArgs) ->
+    application:start(sasl),
     case mp_sup:start_link() of
         {ok, Pid} ->
             {ok, Pid};
