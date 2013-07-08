@@ -51,7 +51,7 @@ init([]) ->
             mp_child_sup, {mp_child_sup, start_link, []},
             permanent, infinity, supervisor, [mp_child_sup]
             },
-    Restart = {one_for_one, 4, 3600},
+    Restart = {one_for_one, 1, 1},
     {ok, {Restart, [ChildSupervisor, AcceptServer]}}.
 
 %%%===================================================================

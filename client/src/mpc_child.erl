@@ -53,22 +53,8 @@ accept(Socket) ->
 %% @end
 %%--------------------------------------------------------------------
 init([Socket]) ->
-    RemotePort = application:get_env(make_proxy_client, remote_port, 7071),
-    RemoteAddr = application:get_env(make_proxy_client, remote_addr, "127.0.0.1"),
-    {ok, Addr} = inet:getaddr(RemoteAddr, inet),
-
-    case gen_tcp:connect(Addr, RemotePort, [binary, {active, false}, {reuseaddr, true}]) of
-        {ok, RemoteSocket} ->
-            {ok, Target} = find_target(Socket),
-            ok = gen_tcp:send(RemoteSocket, transform:transform(Target)),
-            IP = list_to_binary(tuple_to_list({127,0,0,1})),
-            ok = gen_tcp:send(Socket, <<5, 0, 0, 1, IP/binary, 7070:16>>),
-            inet:setopts(Socket, [{active, once}]),
-            inet:setopts(RemoteSocket, [{active, once}]),
-            {ok, #state{socket=Socket, remote=RemoteSocket}, ?TIMEOUT};
-        {error, Error} ->
-            {stop, Error}
-    end.
+    gen_server:cast(self(), connect),
+    {ok, #state{socket=Socket}, ?TIMEOUT}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -98,8 +84,23 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_cast(_Msg, State) ->
-    {noreply, State}.
+handle_cast(connect, #state{socket=Socket} = State) ->
+    RemotePort = application:get_env(make_proxy_client, remote_port, 7071),
+    RemoteAddr = application:get_env(make_proxy_client, remote_addr, "127.0.0.1"),
+    {ok, Addr} = inet:getaddr(RemoteAddr, inet),
+
+    case gen_tcp:connect(Addr, RemotePort, [binary, {active, false}, {reuseaddr, true}]) of
+        {ok, RemoteSocket} ->
+            {ok, Target} = find_target(Socket),
+            ok = gen_tcp:send(RemoteSocket, transform:transform(Target)),
+            IP = list_to_binary(tuple_to_list({127,0,0,1})),
+            ok = gen_tcp:send(Socket, <<5, 0, 0, 1, IP/binary, 7070:16>>),
+            inet:setopts(Socket, [{active, once}]),
+            inet:setopts(RemoteSocket, [{active, once}]),
+            {noreply, State#state{remote=RemoteSocket}, ?TIMEOUT};
+        {error, Error} ->
+            {stop, Error, State}
+    end.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -151,7 +152,10 @@ handle_info(timeout, State) ->
 %%--------------------------------------------------------------------
 terminate(_Reason, State) ->
     gen_tcp:close(State#state.socket), 
-    gen_tcp:close(State#state.remote),
+    case is_port(State#state.remote) of
+        true -> gen_tcp:close(State#state.remote);
+        false -> ok
+    end,
     ok.
 
 %%--------------------------------------------------------------------

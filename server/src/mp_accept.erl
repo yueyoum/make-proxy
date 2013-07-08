@@ -86,7 +86,7 @@ handle_call(_Request, _From, State) ->
 handle_cast(accept, #state{sock=Sock} = State) ->
     {ok, Client} = gen_tcp:accept(Sock),
     {ok, Pid} = mp_child:accept(Client),
-    ok = gen_tcp:controlling_process(Client, Pid),
+    gen_tcp:controlling_process(Client, Pid),
     gen_server:cast(?MODULE, accept),
     {noreply, State}.
 
@@ -114,7 +114,8 @@ handle_info(_Info, State) ->
 %% @spec terminate(Reason, State) -> void()
 %% @end
 %%--------------------------------------------------------------------
-terminate(_Reason, _State) ->
+terminate(_Reason, State) ->
+    gen_tcp:close(State#state.sock),
     ok.
 
 %%--------------------------------------------------------------------
