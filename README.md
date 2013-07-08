@@ -72,11 +72,12 @@ In my daily use,
 
 ![schema](http://i1297.photobucket.com/albums/ag23/yueyoum/x_zps84037781.png)
 
-`mp_sup` is the **top** supervisor,
+`mp_sup` is the application's **top** supervisor,
 
-`mp_accept` block on `gen_tcp:accept`, when comes new connection,
+`mp_accept` block on `gen_tcp:accept`, when new connection comes,
+
 `mp_child_sup` will start a new child, this child communicate with 
-the connected client, and die after connection closed, or some error ocurred.
+the connected client, and die after connection closed, or error ocurred.
 
 ## Usage
 
@@ -102,11 +103,16 @@ the connected client, and die after connection closed, or some error ocurred.
 2.  `cd make-proxy`
 
 3.  `cp client.config.example client.config`
-
     * remote_addr: IP of the compute where `make-proxy` server runs
     * remote_port: PORT that make-proxy server using. **SAME** as the defination of `server.config`.
     * local_addr: "127.0.0.1" or "0.0.0.0" or some specified address.
     * port: which port the make-proxy client will listen on.
+
+4.  `make client`
+
+5.  `./start_client.sh`
+
+6.  Done
 
 Now, you can set your apps (e.g. Browser) Using socks5 proxy.
 
