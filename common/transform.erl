@@ -18,4 +18,3 @@ transform(<<>>, _, Res) ->
 
 transform(<<H:8, T/binary>>, Sign, Res) ->
     transform(T, Sign, [H bxor Sign | Res]).
-

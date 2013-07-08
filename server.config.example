@@ -1,0 +1,14 @@
+[
+{
+    sasl,
+    [
+        {sasl_error_logger, {file, "server.log"}}
+    ]
+},
+{
+    make_proxy_server,
+    [
+        {port, 7072}
+    ]    
+}
+].

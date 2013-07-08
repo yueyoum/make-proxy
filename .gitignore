@@ -2,4 +2,4 @@
 *.bak
 *.beam
 *.dump
-config.hrl
+*.config
