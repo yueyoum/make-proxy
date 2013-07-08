@@ -14,7 +14,7 @@ with the great erlang, the project has the following features:
 
 *   Fast.
 
-*   Lightweight. only needs at most 30MB memories.
+*   Lightweight. only takes less than 20MB memories.
 
 
 ### Running status
@@ -23,15 +23,15 @@ In my daily use,
 
 *   When server is idle, It only takes about 10MB memories.
 
-*   Play a youtube **1080P** video, and load some other websites at the same time,
-    It only takes 20MB ~ 30MB memories.
+*   Play a youtube **1080P** video, 
+    It only takes 12MB memories.
 
     Below is the system status when play a youtube **1080P** video.
-    Notice the `beam.smp` process below of `mysqld`.
+    Notice the `beam.smp` process.
 
-    Linode 4 cpus, 512 RAM VPS.
+    Linode 8 cpus, 1G RAM VPS.
 
-    ![system status](http://i1297.photobucket.com/albums/ag23/yueyoum/uuu_zps1908ecbd.png)
+    ![system status](http://i1297.photobucket.com/albums/ag23/yueyoum/status_zpsa77d8243.png)
 
 
 
@@ -54,7 +54,7 @@ In my daily use,
 
 1.  `proxy client` is running at your local computer.
 
-    It receive your app (like browser) request, encrypt the data,
+    It receive your app (like a browser) request, encrypt the data,
     send to `proxy server`
 
 2.  `proxy server` receive the request from `proxy client`,
