@@ -68,37 +68,52 @@ In my daily use,
 
 5.  the circle done.
 
+## OTP Application Schema
+
+![schema](http://i1297.photobucket.com/albums/ag23/yueyoum/x_zps84037781.png)
+
+`mp_sup` is the **top** supervisor,
+
+`mp_accept` block on `gen_tcp:accept`, when comes new connection,
+`mp_child_sup` will start a new child, this child communicate with 
+the connected client, and die after connection closed, or some error ocurred.
 
 ## Usage
 
 ### Server side
 
 1.  `git clone https://github.com/yueyoum/make-proxy.git` or directly download.
-2.  `cp src/config.hrl.example src/config.hrl`
 
-    You need to define the `REMOTEIP` and `REMOTEPORT`.
+2.  `cd make-proxy`
 
-    `REMOTEPORT` is which port proxy_server will listen on.
+3.  `cp server.config.example server.config`,
+    and change the port what you want.
 
-4.  `./start_server.sh` or `./start_server.sh -d` will run the server in backend.
+    server will listen on this port.
 
+4.  `make server`
+5.  `./start_server.sh`
+6.  Done.
 
 ### Local side
 
-1.  same as the *Server side*, checkout the code, and do the difinition **AS SAME AS** the server side
+1.  same as the *Server side*, checkout the code.
 
-2.  `./start_client.sh`
+2.  `cd make-proxy`
 
+3.  `cp client.config.example client.config`
+
+    * remote_addr: IP of the compute where `make-proxy` server runs
+    * remote_port: PORT that make-proxy server using. **SAME** as the defination of `server.config`.
+    * local_addr: "127.0.0.1" or "0.0.0.0" or some specified address.
+    * port: which port the make-proxy client will listen on.
 
 Now, you can set your apps (e.g. Browser) Using socks5 proxy.
 
 IP = `127.0.0.1`
-
-PORT = `7070`  (if not changed in the src/config.hrl)
+PORT = `7070`  (if not changed in the client.config)
 
 
 ## TODO
 
-1.  change the encrypt/decrypt method, now is just  every byte do `bxor` with `2#01111001`
-
-
+1.  Support HTTP Proxy
