@@ -45,8 +45,8 @@ start_link() ->
 %% @end
 %%--------------------------------------------------------------------
 init([]) ->
-    Port = application:get_env(make_proxy_client, port, 7070),
-    ADDR = application:get_env(make_proxy_client, local_addr, "127.0.0.1"),
+    {ok, Port} = application:get_env(make_proxy_client, port),
+    {ok, ADDR} = application:get_env(make_proxy_client, local_addr),
     {ok, IP} = inet:getaddr(ADDR, inet),
 
     {ok, Sock} = gen_tcp:listen(Port,

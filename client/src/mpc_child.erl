@@ -85,8 +85,8 @@ handle_call(_Request, _From, State) ->
 %% @end
 %%--------------------------------------------------------------------
 handle_cast(connect, #state{socket=Socket} = State) ->
-    RemotePort = application:get_env(make_proxy_client, remote_port, 7071),
-    RemoteAddr = application:get_env(make_proxy_client, remote_addr, "127.0.0.1"),
+    {ok, RemotePort} = application:get_env(make_proxy_client, remote_port),
+    {ok, RemoteAddr} = application:get_env(make_proxy_client, remote_addr),
     {ok, Addr} = inet:getaddr(RemoteAddr, inet),
 
     case gen_tcp:connect(Addr, RemotePort, [binary, {active, false}, {reuseaddr, true}]) of
