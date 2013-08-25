@@ -27,7 +27,7 @@
 %% @end
 %%--------------------------------------------------------------------
 start_link() ->
-    Port = application:get_env(make_proxy_server, port, 7071),
+    {ok, Port} = application:get_env(make_proxy_server, port),
     gen_server:start_link({local, ?MODULE}, ?MODULE, [Port], []).
 
 %%%===================================================================
