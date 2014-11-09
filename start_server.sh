@@ -5,5 +5,5 @@ WORKDIR=`dirname "$SELF"`
 
 cd "$WORKDIR"
 
-erl -pa common -pa server/ebin -noshell -config server +K true -eval "application:start(make_proxy_server)." -detached
+erl -pa server/ebin -config server +K true -s make_proxy_server start
 exit $?

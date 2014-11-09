@@ -3,8 +3,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/1,
-        accept/1]).
+-export([start_link/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -14,8 +13,7 @@
          terminate/2,
          code_change/3]).
 
--record(state, {socket, remote}).
--define(TIMEOUT, 3600 * 24 * 1000).
+-record(state, {lsock, socket, remote}).
 
 -include("../../common/socks_type.hrl").
 
@@ -30,12 +28,8 @@
 %% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
 %% @end
 %%--------------------------------------------------------------------
-start_link(Socket) ->
-    gen_server:start_link(?MODULE, [Socket], []).
-
-accept(Socket) ->
-    mpc_child_sup:start_child(Socket).
-
+start_link(LSock) ->
+    gen_server:start_link(?MODULE, [LSock], []).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -52,9 +46,9 @@ accept(Socket) ->
 %%                     {stop, Reason}
 %% @end
 %%--------------------------------------------------------------------
-init([Socket]) ->
-    gen_server:cast(self(), connect),
-    {ok, #state{socket=Socket}, ?TIMEOUT}.
+init([LSock]) ->
+    io:format("mpc_child, init...~p~n", [self()]),
+    {ok, #state{lsock=LSock}, 0}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -84,23 +78,8 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_cast(connect, #state{socket=Socket} = State) ->
-    {ok, RemotePort} = application:get_env(make_proxy_client, remote_port),
-    {ok, RemoteAddr} = application:get_env(make_proxy_client, remote_addr),
-    {ok, Addr} = inet:getaddr(RemoteAddr, inet),
-
-    case gen_tcp:connect(Addr, RemotePort, [binary, {active, false}, {reuseaddr, true}]) of
-        {ok, RemoteSocket} ->
-            {ok, Target} = find_target(Socket),
-            ok = gen_tcp:send(RemoteSocket, transform:transform(Target)),
-            IP = list_to_binary(tuple_to_list({127,0,0,1})),
-            ok = gen_tcp:send(Socket, <<5, 0, 0, 1, IP/binary, 7070:16>>),
-            inet:setopts(Socket, [{active, once}]),
-            inet:setopts(RemoteSocket, [{active, once}]),
-            {noreply, State#state{remote=RemoteSocket}, ?TIMEOUT};
-        {error, Error} ->
-            {stop, Error, State}
-    end.
+handle_cast(_Info, State) ->
+    {noreply, State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -112,20 +91,38 @@ handle_cast(connect, #state{socket=Socket} = State) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_info({tcp, Socket, Request}, State) when Socket =:= State#state.socket ->
-    case gen_tcp:send(State#state.remote, transform:transform(Request)) of
-        ok ->
+
+
+handle_info(timeout, #state{lsock=LSock} = State) ->
+    io:format("Prepare for accept...~p~n", [self()]),
+    {ok, Socket} = gen_tcp:accept(LSock),
+    io:format("Accept success~p~n", [self()]),
+    mpc_sup:start_child(),
+    case start_process(Socket) of
+        {ok, Remote} ->
             inet:setopts(Socket, [{active, once}]),
-            {noreply, State, ?TIMEOUT};
+            inet:setopts(Remote, [{active, once}]),
+            {noreply, State#state{socket=Socket, remote=Remote}};
         {error, Error} ->
             {stop, Error, State}
     end;
 
-handle_info({tcp, Socket, Response}, State) when Socket =:= State#state.remote ->
-    case gen_tcp:send(State#state.socket, transform:transform(Response)) of
+%% recv from client, and send to remote
+handle_info({tcp, Socket, Request}, #state{socket=Socket, remote=Remote} = State) ->
+    case gen_tcp:send(Remote, Request) of
         ok ->
             inet:setopts(Socket, [{active, once}]),
-            {noreply, State, ?TIMEOUT};
+            {noreply, State};
+        {error, Error} ->
+            {stop, Error, State}
+    end;
+
+%% recv from remote, and send back to client
+handle_info({tcp, Socket, Response}, #state{socket=Client, remote=Socket} = State) ->
+    case gen_tcp:send(Client, Response) of
+        ok ->
+            inet:setopts(Socket, [{active, once}]),
+            {noreply, State};
         {error, Error} ->
             {stop, Error, State}
     end;
@@ -134,10 +131,8 @@ handle_info({tcp_closed, _}, State) ->
     {stop, normal, State};
 
 handle_info({tcp_error, _, Reason}, State) ->
-    {stop, Reason, State};
+    {stop, Reason, State}.
 
-handle_info(timeout, State) ->
-    {stop, timeout, State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -173,14 +168,33 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
+start_process(Socket) ->
+    {ok, RemoteAddr} = application:get_env(make_proxy_client, remote_addr),
+    {ok, RemotePort} = application:get_env(make_proxy_client, remote_port),
+    {ok, LocalPort} = application:get_env(make_proxy_client, local_port),
+    {ok, Addr} = inet:getaddr(RemoteAddr, inet),
+
+    {ok, Target} = find_target(Socket),
+
+    io:format("Connect:~n", []),
+    io:format("Addr: ~p, Port: ~p~n", [Addr, RemotePort]),
+    case gen_tcp:connect(Addr, RemotePort, [binary, {active, false}]) of
+        {ok, RemoteSocket} ->
+            ok = gen_tcp:send(RemoteSocket, Target),
+            ok = gen_tcp:send(Socket, <<5, 0, 0, 1, <<0,0,0,0>>/binary, LocalPort:16>>),
+            {ok, RemoteSocket};
+        {error, Error} ->
+            io:format("connect Error: ~p~n", [Error]),
+            {error, Error}
+    end.
 
 
 find_target(Socket) ->
-    {ok, <<16#05:8, Nmethods:8>>} = gen_tcp:recv(Socket, 2),
+    {ok, <<5:8, Nmethods:8>>} = gen_tcp:recv(Socket, 2),
     {ok, _Methods} = gen_tcp:recv(Socket, Nmethods),
 
-    gen_tcp:send(Socket, <<16#05, 16#0>>),
-    {ok, <<16#05:8, 16#01:8, _Rsv:8, AType:8>>} = gen_tcp:recv(Socket, 4),
+    gen_tcp:send(Socket, <<5:8/integer, 0:8/integer>>),
+    {ok, <<5:8, 1:8, _Rsv:8, AType:8>>} = gen_tcp:recv(Socket, 4),
 
     case AType of
         ?IPV4 ->
@@ -197,5 +211,4 @@ find_target(Socket) ->
             {ok, <<Port:16>>} = gen_tcp:recv(Socket, 2),
             {ok, <<?DOMAIN, Port:16, DomainLen:8, DomainBin/binary>>}
     end.
-
 

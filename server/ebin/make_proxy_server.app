@@ -3,14 +3,11 @@
     make_proxy_server,
     [
         {description, "Make Proxy Server"},
-        {vsn, "0.1.0"},
+        {vsn, "2.0.0"},
         {modules, [
-            make_proxy_server,
             mp_app,
             mp_sup,
-            mp_accept,
-            mp_child,
-            mp_child_sup
+            mp_child
         ]},
         {registered, [mp_sup]},
         {applications, [kernel, stdlib]},

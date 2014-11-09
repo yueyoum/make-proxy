@@ -6,7 +6,14 @@ WORKDIR=`dirname "$SELF"`
 cd "$WORKDIR"
 
 
-erl -pa common -pa client/ebin -config client +K true -eval "application:start(make_proxy_client)." -noshell
+running=`ps -ef | grep make_proxy_client | wc -l`
+if [[ running -ge 2 ]]
+then
+    echo "alreay running"
+    exit -1
+else
+    erl -pa client/ebin -config client +K true -s make_proxy_client start
+fi
 
 exit 0
 

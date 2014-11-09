@@ -3,13 +3,13 @@
 -behaviour(supervisor).
 
 %% API
--export([start_link/0]).
+-export([start_link/1,
+         start_child/0]).
 
 %% Supervisor callbacks
 -export([init/1]).
 
-%% -define(CHILD(Id, Mod, Type, Args), {Id, {Mod, start_link, Args},
-%%                                      permanent, 5000, Type, [Mod]}).
+-define(SERVER, ?MODULE).
 
 %%%===================================================================
 %%% API functions
@@ -22,8 +22,11 @@
 %% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
 %% @end
 %%--------------------------------------------------------------------
-start_link() ->
-    supervisor:start_link({local, ?MODULE}, ?MODULE, []).
+start_link(LSock) ->
+    supervisor:start_link({local, ?SERVER}, ?MODULE, [LSock]).
+
+start_child() ->
+    supervisor:start_child(?SERVER, []).
 
 %%%===================================================================
 %%% Supervisor callbacks
@@ -42,17 +45,13 @@ start_link() ->
 %%                     {error, Reason}
 %% @end
 %%--------------------------------------------------------------------
-init([]) ->
-    AcceptServer = {
-            mpc_accept, {mpc_accept, start_link, []},
-            permanent, 2000, worker, [mpc_accept]
-            },
-    ChildSupervisor = {
-            mpc_child_sup, {mpc_child_sup, start_link, []},
-            permanent, infinity, supervisor, [mpc_child_sup]
-            },
-    Restart = {one_for_one, 1, 1},
-    {ok, {Restart, [ChildSupervisor, AcceptServer]}}.
+init([LSock]) ->
+    Child = {mpc_child, {mpc_child, start_link, [LSock]},
+             temporary, brutal_kill, worker, [mpc_child]},
+
+    Children = [Child],
+    Restart = {simple_one_for_one, 0, 1},
+    {ok, {Restart, Children}}.
 
 %%%===================================================================
 %%% Internal functions

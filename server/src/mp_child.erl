@@ -3,8 +3,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/1,
-        accept/1]).
+-export([start_link/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -14,8 +13,7 @@
          terminate/2,
          code_change/3]).
 
--record(state, {socket, remote}).
--define(TIMEOUT, 3600 * 24 * 1000).
+-record(state, {lsock, socket, remote}).
 
 -include("../../common/socks_type.hrl").
 
@@ -31,12 +29,9 @@
 %% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
 %% @end
 %%--------------------------------------------------------------------
-start_link(Socket) ->
-    gen_server:start_link(?MODULE, [Socket], []).
+start_link(LSock) ->
+    gen_server:start_link(?MODULE, [LSock], []).
 
-
-accept(Socket) ->
-    mp_child_sup:start_child(Socket).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -53,9 +48,9 @@ accept(Socket) ->
 %%                     {stop, Reason}
 %% @end
 %%--------------------------------------------------------------------
-init([Socket]) ->
-    gen_server:cast(self(), sock_recv),
-    {ok, #state{socket=Socket}, ?TIMEOUT}.
+init([LSock]) ->
+    io:format("mp_child, init...~n", []),
+    {ok, #state{lsock=LSock}, 0}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -73,7 +68,7 @@ init([Socket]) ->
 %%--------------------------------------------------------------------
 handle_call(_Request, _From, State) ->
     Reply = ok,
-    {reply, Reply, State, ?TIMEOUT}.
+    {reply, Reply, State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -85,11 +80,8 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_cast(sock_recv, #state{socket=Socket} = State) ->
-    {ok, Remote} = connect_to_remote(Socket),
-    inet:setopts(Socket, [{active, once}]),
-    inet:setopts(Remote, [{active, once}]),
-    {noreply, State#state{remote=Remote}, ?TIMEOUT}.
+handle_cast(_Msg, State) ->
+    {noreply, State}.
 
 
 
@@ -103,20 +95,38 @@ handle_cast(sock_recv, #state{socket=Socket} = State) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_info({tcp, Socket, Request}, State) when Socket =:= State#state.socket ->
-    case gen_tcp:send(State#state.remote, transform:transform(Request)) of
-        ok ->
+
+handle_info(timeout, #state{lsock=LSock} = State) ->
+    io:format("Start Accept...~p~n", [self()]),
+    {ok, Socket} = gen_tcp:accept(LSock),
+    io:format("Accept success...~p~n", [self()]),
+    mp_sup:start_child(),
+    case connect_to_remote(Socket) of
+        {ok, Remote} ->
             inet:setopts(Socket, [{active, once}]),
-            {noreply, State, ?TIMEOUT};
+            inet:setopts(Remote, [{active, once}]),
+            {noreply, State#state{socket=Socket, remote=Remote}};
         {error, Error} ->
             {stop, Error, State}
     end;
 
-handle_info({tcp, Socket, Response}, State) when Socket =:= State#state.remote ->
-    case gen_tcp:send(State#state.socket, transform:transform(Response)) of
+
+%% recv from client, and send to server
+handle_info({tcp, Socket, Request}, #state{socket=Socket, remote=Remote} = State) ->
+    case gen_tcp:send(Remote, Request) of
         ok ->
             inet:setopts(Socket, [{active, once}]),
-            {noreply, State, ?TIMEOUT};
+            {noreply, State};
+        {error, Error} ->
+            {stop, Error, State}
+    end;
+
+%% recv from server, and send back to client
+handle_info({tcp, Socket, Response}, #state{socket=Client, remote=Socket} = State) ->
+    case gen_tcp:send(Client, Response) of
+        ok ->
+            inet:setopts(Socket, [{active, once}]),
+            {noreply, State};
         {error, Error} ->
             {stop, Error, State}
     end;
@@ -125,10 +135,8 @@ handle_info({tcp_closed, _}, State) ->
     {stop, normal, State};
 
 handle_info({tcp_error, _, Reason}, State) ->
-    {stop, Reason, State};
+    {stop, Reason, State}.
 
-handle_info(timeout, State) ->
-    {stop, timeout, State}.
 
 
 %%--------------------------------------------------------------------
@@ -166,30 +174,30 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 
 connect_to_remote(Socket) ->
-    {ok, Data} = gen_tcp:recv(Socket, 1),
-    {ok, {Address, Port}} = parse_address(Socket, transform:transform(Data)),
+    {ok, AType} = gen_tcp:recv(Socket, 1),
+    {ok, {Address, Port}} = parse_address(Socket, AType),
     connect_target(Address, Port).
 
 
 parse_address(Socket, AType) when AType =:= <<?IPV4>> ->
     {ok, Data} = gen_tcp:recv(Socket, 6),
-    <<Port:16, Destination/binary>> = transform:transform(Data),
+    <<Port:16, Destination/binary>> = Data,
     Address = list_to_tuple( binary_to_list(Destination) ),
     {ok, {Address, Port}};
 
 parse_address(Socket, AType) when AType =:= <<?IPV6>> ->
     {ok, Data} = gen_tcp:recv(Socket, 18),
-    <<Port:16, Destination/binary>> = transform:transform(Data),
+    <<Port:16, Destination/binary>> = Data,
     Address = list_to_tuple( binary_to_list(Destination) ),
     {ok, {Address, Port}};
 
 
 parse_address(Socket, AType) when AType =:= <<?DOMAIN>> ->
     {ok, Data} = gen_tcp:recv(Socket, 3),
-    <<Port:16, DomainLen:8>> = transform:transform(Data),
+    <<Port:16, DomainLen:8>> = Data,
 
     {ok, DataRest} = gen_tcp:recv(Socket, DomainLen),
-    Destination = transform:transform(DataRest),
+    Destination = DataRest,
 
     Address = binary_to_list(Destination),
     {ok, {Address, Port}}.
@@ -198,13 +206,14 @@ parse_address(Socket, AType) when AType =:= <<?DOMAIN>> ->
 connect_target(Address, Port) ->
     connect_target(Address, Port, 2).
 
-connect_target(Address, Port, Times) ->
+connect_target(_, _, 0) ->
+    {error, connect_failure};
+
+connect_target(Address, Port, RetryTimes) ->
     case gen_tcp:connect(Address, Port, [binary, {active, false}], 5000) of
         {ok, TargetSocket} ->
             {ok, TargetSocket};
-        {error, _Error} when Times >= 1 ->
-            connect_target(Address, Port, Times-1);
-        {error, Error} ->
-            {error, Error}
+        {error, _Error} ->
+            connect_target(Address, Port, RetryTimes-1)
     end.
 
