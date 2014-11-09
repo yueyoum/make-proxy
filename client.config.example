@@ -4,8 +4,8 @@
     [
         {remote_addr, "127.0.0.1"},
         {remote_port, 7071},
-        {local_addr, "127.0.0.1"},
-        {port, 7070}
+        {local_port, 7070},
+        {key, "1234567890abcdef"}
     ]    
 }
 ].

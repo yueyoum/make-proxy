@@ -39,9 +39,9 @@ In my daily use,
 ### Illustrate
 
 ```
-+-----------+            +--------------+   encrypt
-| local app |  <=======> | proxy client |  <#######
-+-----------+   decrypt  +--------------+         #
++------------+            +--------------+          
+| local app  |  <=======> | proxy client | <#######
++------------+            +--------------+        #
                                                   #
                                                   #
                                                   # encrypted data
@@ -49,7 +49,7 @@ In my daily use,
                                                   #
 +-------------+            +--------------+       #
 | target host |  <=======> | proxy server |  <#####
-+-------------+   decrypt  +--------------+  encrypt
++-------------+            +--------------+         
 ```
 
 1.  `proxy client` is running at your local computer.
@@ -60,7 +60,7 @@ In my daily use,
 2.  `proxy server` receive the request from `proxy client`,
     decrypt it, and sent to the target host.
 
-3.  `proxy server` got the response from target host, and encrypt response,
+3.  `proxy server` got the response from target host, then encrypt response,
     send back to `proxy client`.
 
 4.  `proxy client` decrypt response received from `proxy server`,
@@ -68,16 +68,6 @@ In my daily use,
 
 5.  the circle done.
 
-## OTP Application Schema
-
-![schema](http://i1297.photobucket.com/albums/ag23/yueyoum/x_zps84037781.png)
-
-`mp_sup` is the application's **top** supervisor,
-
-`mp_accept` block on `gen_tcp:accept`, when new connection comes,
-
-`mp_child_sup` will start a new child, this child communicate with 
-the connected client, and die after connection closed, or error ocurred.
 
 ## Usage
 
@@ -88,9 +78,11 @@ the connected client, and die after connection closed, or error ocurred.
 2.  `cd make-proxy`
 
 3.  `cp server.config.example server.config`,
-    and change the port what you want.
+    
+    #### server.config
 
-    server will listen on this port.
+    *   port.   which port that the server listen on
+    *   key.    key to encrypt/decrypt data
 
 4.  `make server`
 5.  `./start_server.sh`
@@ -103,10 +95,13 @@ the connected client, and die after connection closed, or error ocurred.
 2.  `cd make-proxy`
 
 3.  `cp client.config.example client.config`
-    * remote_addr: IP of the compute where `make-proxy` server runs
-    * remote_port: PORT that make-proxy server using. **SAME** as the defination of `server.config`.
-    * local_addr: "127.0.0.1" or "0.0.0.0" or some specified address.
-    * port: which port the make-proxy client will listen on.
+
+    #### client.config
+
+    *   remote_addr. IP of the compute where `make-proxy` server runs
+    *   remote_port. PORT that make-proxy server using. **SAME** as the defination of `server.config`.
+    *   local_port.  which port the make-proxy client will listen on.
+    *   key.    key to encrypt/decrypt data. this **MUST AS SAME AS** the defination of `server.config`.
 
 4.  `make client`
 
@@ -119,7 +114,9 @@ Now, you can set your apps (e.g. Browser) Using socks5 proxy.
 IP = `127.0.0.1`
 PORT = `7070`  (if not changed in the client.config)
 
-
 ## TODO
 
-1.  Support HTTP Proxy
+1.  Support Socks5 Username/Password Authorize
+2.  Support HTTP Proxy
+3.  Traffic Statistics
+

@@ -12,7 +12,7 @@ then
     echo "alreay running"
     exit -1
 else
-    erl -pa client/ebin -config client +K true -s make_proxy_client start
+    erl -pa client/ebin -config client +K true -s make_proxy_client start -detached
 fi
 
 exit 0

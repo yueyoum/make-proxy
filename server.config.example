@@ -8,7 +8,8 @@
 {
     make_proxy_server,
     [
-        {port, 7071}
+        {port, 7071},
+        {key, "1234567890abcdef"}
     ]    
 }
 ].
