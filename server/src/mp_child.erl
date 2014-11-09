@@ -13,7 +13,7 @@
          terminate/2,
          code_change/3]).
 
--record(state, {lsock, socket, remote}).
+-record(state, {key, lsock, socket, remote}).
 
 -include("../../common/socks_type.hrl").
 
@@ -51,7 +51,8 @@ start_link(LSock) ->
 %% @end
 %%--------------------------------------------------------------------
 init([LSock]) ->
-    {ok, #state{lsock=LSock}, 0}.
+    {ok, Key} = application:get_env(make_proxy_server, key),
+    {ok, #state{key=Key, lsock=LSock}, 0}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -98,10 +99,10 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 
 %% the first message send to this child
-handle_info(timeout, #state{lsock=LSock, socket=undefined} = State) ->
+handle_info(timeout, #state{key=Key, lsock=LSock, socket=undefined} = State) ->
     {ok, Socket} = gen_tcp:accept(LSock),
     mp_sup:start_child(),
-    case connect_to_remote(Socket) of
+    case connect_to_remote(Socket, Key) of
         {ok, Remote} ->
             inet:setopts(Socket, [{active, once}]),
             inet:setopts(Remote, [{active, once}]),
@@ -115,8 +116,8 @@ handle_info(timeout, #state{socket=Socket} = State) when is_port(Socket) ->
     {stop, timeout, State};
 
 %% recv from client, and send to server
-handle_info({tcp, Socket, Request}, #state{socket=Socket, remote=Remote} = State) ->
-    case gen_tcp:send(Remote, Request) of
+handle_info({tcp, Socket, Request}, #state{key=Key, socket=Socket, remote=Remote} = State) ->
+    case gen_tcp:send(Remote, mp_crypto:decrypt(Key, Request)) of
         ok ->
             inet:setopts(Socket, [{active, once}]),
             {noreply, State, ?TIMEOUT};
@@ -125,8 +126,8 @@ handle_info({tcp, Socket, Request}, #state{socket=Socket, remote=Remote} = State
     end;
 
 %% recv from server, and send back to client
-handle_info({tcp, Socket, Response}, #state{socket=Client, remote=Socket} = State) ->
-    case gen_tcp:send(Client, Response) of
+handle_info({tcp, Socket, Response}, #state{key=Key, socket=Client, remote=Socket} = State) ->
+    case gen_tcp:send(Client, mp_crypto:encrypt(Key, Response)) of
         ok ->
             inet:setopts(Socket, [{active, once}]),
             {noreply, State, ?TIMEOUT};
@@ -178,33 +179,29 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
-connect_to_remote(Socket) ->
-    {ok, AType} = gen_tcp:recv(Socket, 1),
-    {ok, {Address, Port}} = parse_address(Socket, AType),
+connect_to_remote(Socket, Key) ->
+    {ok, EntrypedData} = gen_tcp:recv(Socket, 0),
+    RealData = mp_crypto:decrypt(Key, EntrypedData),
+    <<AType:8, Rest/binary>> = RealData,
+
+    {ok, {Address, Port}} = parse_address(AType, Rest),
     connect_target(Address, Port).
 
 
-parse_address(Socket, AType) when AType =:= <<?IPV4>> ->
-    {ok, Data} = gen_tcp:recv(Socket, 6),
+parse_address(?IPV4, Data) ->
     <<Port:16, Destination/binary>> = Data,
     Address = list_to_tuple( binary_to_list(Destination) ),
     {ok, {Address, Port}};
 
-parse_address(Socket, AType) when AType =:= <<?IPV6>> ->
-    {ok, Data} = gen_tcp:recv(Socket, 18),
+parse_address(?IPV6, Data) ->
     <<Port:16, Destination/binary>> = Data,
     Address = list_to_tuple( binary_to_list(Destination) ),
     {ok, {Address, Port}};
 
 
-parse_address(Socket, AType) when AType =:= <<?DOMAIN>> ->
-    {ok, Data} = gen_tcp:recv(Socket, 3),
-    <<Port:16, DomainLen:8>> = Data,
-
-    {ok, DataRest} = gen_tcp:recv(Socket, DomainLen),
-    Destination = DataRest,
-
-    Address = binary_to_list(Destination),
+parse_address(?DOMAIN, Data) ->
+    <<Port:16, _DomainLen:8, Rest/binary>> = Data,
+    Address = binary_to_list(Rest),
     {ok, {Address, Port}}.
 
 

@@ -13,7 +13,7 @@
          terminate/2,
          code_change/3]).
 
--record(state, {lsock, socket, remote}).
+-record(state, {key, lsock, socket, remote}).
 
 -include("../../common/socks_type.hrl").
 -define(TIMEOUT, 1000 * 60 * 10).
@@ -48,7 +48,8 @@ start_link(LSock) ->
 %% @end
 %%--------------------------------------------------------------------
 init([LSock]) ->
-    {ok, #state{lsock=LSock}, 0}.
+    {ok, Key} = application:get_env(make_proxy_client, key),
+    {ok, #state{key=Key, lsock=LSock}, 0}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -94,10 +95,10 @@ handle_cast(_Info, State) ->
 
 
 %% the first message send to this child
-handle_info(timeout, #state{lsock=LSock, socket=undefined} = State) ->
+handle_info(timeout, #state{key=Key, lsock=LSock, socket=undefined} = State) ->
     {ok, Socket} = gen_tcp:accept(LSock),
     mpc_sup:start_child(),
-    case start_process(Socket) of
+    case start_process(Socket, Key) of
         {ok, Remote} ->
             inet:setopts(Socket, [{active, once}]),
             inet:setopts(Remote, [{active, once}]),
@@ -111,8 +112,8 @@ handle_info(timeout, #state{socket=Socket} = State) when is_port(Socket) ->
     {stop, timeout, State};
 
 %% recv from client, and send to remote
-handle_info({tcp, Socket, Request}, #state{socket=Socket, remote=Remote} = State) ->
-    case gen_tcp:send(Remote, Request) of
+handle_info({tcp, Socket, Request}, #state{key=Key, socket=Socket, remote=Remote} = State) ->
+    case gen_tcp:send(Remote, mp_crypto:encrypt(Key, Request)) of
         ok ->
             inet:setopts(Socket, [{active, once}]),
             {noreply, State, ?TIMEOUT};
@@ -121,8 +122,8 @@ handle_info({tcp, Socket, Request}, #state{socket=Socket, remote=Remote} = State
     end;
 
 %% recv from remote, and send back to client
-handle_info({tcp, Socket, Response}, #state{socket=Client, remote=Socket} = State) ->
-    case gen_tcp:send(Client, Response) of
+handle_info({tcp, Socket, Response}, #state{key=Key, socket=Client, remote=Socket} = State) ->
+    case gen_tcp:send(Client, mp_crypto:decrypt(Key, Response)) of
         ok ->
             inet:setopts(Socket, [{active, once}]),
             {noreply, State, ?TIMEOUT};
@@ -174,7 +175,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
-start_process(Socket) ->
+start_process(Socket, Key) ->
     {ok, RemoteAddr} = application:get_env(make_proxy_client, remote_addr),
     {ok, RemotePort} = application:get_env(make_proxy_client, remote_port),
     {ok, LocalPort} = application:get_env(make_proxy_client, local_port),
@@ -182,9 +183,10 @@ start_process(Socket) ->
 
     {ok, Target} = find_target(Socket),
 
-    case gen_tcp:connect(Addr, RemotePort, [binary, {active, false}]) of
+    EncryptedTarget = mp_crypto:encrypt(Key, Target),
+    case gen_tcp:connect(Addr, RemotePort, [binary, {active, false}, {packet, 4}]) of
         {ok, RemoteSocket} ->
-            ok = gen_tcp:send(RemoteSocket, Target),
+            ok = gen_tcp:send(RemoteSocket, EncryptedTarget),
             ok = gen_tcp:send(Socket, <<5, 0, 0, 1, <<0,0,0,0>>/binary, LocalPort:16>>),
             {ok, RemoteSocket};
         {error, Error} ->

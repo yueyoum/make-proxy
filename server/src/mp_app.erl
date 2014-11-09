@@ -33,6 +33,7 @@ start(_StartType, _StartArgs) ->
                                         {ip, Ip},
                                         {reuseaddr, true},
                                         {active, false},
+                                        {packet, 4},
                                         {backlog, 256}]),
     case mp_sup:start_link(LSock) of
         {ok, Pid} ->
