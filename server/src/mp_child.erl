@@ -117,7 +117,8 @@ handle_info(timeout, #state{socket=Socket} = State) when is_port(Socket) ->
 
 %% recv from client, and send to server
 handle_info({tcp, Socket, Request}, #state{key=Key, socket=Socket, remote=Remote} = State) ->
-    case gen_tcp:send(Remote, mp_crypto:decrypt(Key, Request)) of
+    {ok, RealData} = mp_crypto:decrypt(Key, Request),
+    case gen_tcp:send(Remote, RealData) of
         ok ->
             inet:setopts(Socket, [{active, once}]),
             {noreply, State, ?TIMEOUT};
@@ -181,11 +182,15 @@ code_change(_OldVsn, State, _Extra) ->
 
 connect_to_remote(Socket, Key) ->
     {ok, EntrypedData} = gen_tcp:recv(Socket, 0),
-    RealData = mp_crypto:decrypt(Key, EntrypedData),
-    <<AType:8, Rest/binary>> = RealData,
 
-    {ok, {Address, Port}} = parse_address(AType, Rest),
-    connect_target(Address, Port).
+    case mp_crypto:decrypt(Key, EntrypedData) of
+        {ok, RealData} ->
+            <<AType:8, Rest/binary>> = RealData,
+            {ok, {Address, Port}} = parse_address(AType, Rest),
+            connect_target(Address, Port);
+        {error, Error} ->
+            {error, Error}
+    end.
 
 
 parse_address(?IPV4, Data) ->

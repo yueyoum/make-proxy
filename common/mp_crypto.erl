@@ -17,6 +17,11 @@ encrypt(Key, Binary) ->
 
 decrypt(Key, Binary) ->
     Data = crypto:block_decrypt(aes_cbc128, Key, ?IV, Binary),
-    <<Length:32/integer-big, RealData:Length/binary, _Rest/binary>> = Data,
-    RealData.
+    try
+        <<Length:32/integer-big, RealData:Length/binary, _Rest/binary>> = Data,
+        {ok, RealData}
+    catch
+        Error:Reason ->
+            {error, {Error, Reason}}
+    end.
 

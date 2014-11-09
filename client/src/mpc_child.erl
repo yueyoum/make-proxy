@@ -123,7 +123,8 @@ handle_info({tcp, Socket, Request}, #state{key=Key, socket=Socket, remote=Remote
 
 %% recv from remote, and send back to client
 handle_info({tcp, Socket, Response}, #state{key=Key, socket=Client, remote=Socket} = State) ->
-    case gen_tcp:send(Client, mp_crypto:decrypt(Key, Response)) of
+    {ok, RealData} = mp_crypto:decrypt(Key, Response),
+    case gen_tcp:send(Client, RealData) of
         ok ->
             inet:setopts(Socket, [{active, once}]),
             {noreply, State, ?TIMEOUT};
