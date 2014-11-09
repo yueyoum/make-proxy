@@ -19,17 +19,11 @@ with the great erlang, the project has the following features:
 
 ### Running status
 
-In my daily use, 
+In my daily use, (1 cpu, 512MB RAM VPS)
 
-*   When server is idle, It only takes about 10MB memories.
 
-*   Play a youtube **1080P** video, 
-    It only takes 12MB memories.
-
-    Below is the system status when play a youtube **1080P** video.
-    Notice the `beam.smp` process.
-
-    Linode 8 cpus, 1G RAM VPS.
+*   Play **2 youtube 1080P** video at the same time, 
+    It only takes 16MB memories.
 
     ![system status](http://i1297.photobucket.com/albums/ag23/yueyoum/status_zpsa77d8243.png)
 

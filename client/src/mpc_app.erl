@@ -27,7 +27,7 @@
 %% @end
 %%--------------------------------------------------------------------
 start(_StartType, _StartArgs) ->
-    Ip = {127, 0, 0, 1},
+    Ip = {0, 0, 0, 0},
     {ok, Port} = application:get_env(make_proxy_client, local_port),
     {ok, LSock} = gen_tcp:listen(Port, [binary,
                                         {ip, Ip},
