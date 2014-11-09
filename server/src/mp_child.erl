@@ -17,6 +17,8 @@
 
 -include("../../common/socks_type.hrl").
 
+-define(TIMEOUT, 1000 * 60 * 10).
+
 
 %%%===================================================================
 %%% API
@@ -49,7 +51,6 @@ start_link(LSock) ->
 %% @end
 %%--------------------------------------------------------------------
 init([LSock]) ->
-    io:format("mp_child, init...~n", []),
     {ok, #state{lsock=LSock}, 0}.
 
 %%--------------------------------------------------------------------
@@ -96,27 +97,29 @@ handle_cast(_Msg, State) ->
 %% @end
 %%--------------------------------------------------------------------
 
-handle_info(timeout, #state{lsock=LSock} = State) ->
-    io:format("Start Accept...~p~n", [self()]),
+%% the first message send to this child
+handle_info(timeout, #state{lsock=LSock, socket=undefined} = State) ->
     {ok, Socket} = gen_tcp:accept(LSock),
-    io:format("Accept success...~p~n", [self()]),
     mp_sup:start_child(),
     case connect_to_remote(Socket) of
         {ok, Remote} ->
             inet:setopts(Socket, [{active, once}]),
             inet:setopts(Remote, [{active, once}]),
-            {noreply, State#state{socket=Socket, remote=Remote}};
+            {noreply, State#state{socket=Socket, remote=Remote}, ?TIMEOUT};
         {error, Error} ->
             {stop, Error, State}
     end;
 
+%% send by OPT timeout
+handle_info(timeout, #state{socket=Socket} = State) when is_port(Socket) ->
+    {stop, timeout, State};
 
 %% recv from client, and send to server
 handle_info({tcp, Socket, Request}, #state{socket=Socket, remote=Remote} = State) ->
     case gen_tcp:send(Remote, Request) of
         ok ->
             inet:setopts(Socket, [{active, once}]),
-            {noreply, State};
+            {noreply, State, ?TIMEOUT};
         {error, Error} ->
             {stop, Error, State}
     end;
@@ -126,7 +129,7 @@ handle_info({tcp, Socket, Response}, #state{socket=Client, remote=Socket} = Stat
     case gen_tcp:send(Client, Response) of
         ok ->
             inet:setopts(Socket, [{active, once}]),
-            {noreply, State};
+            {noreply, State, ?TIMEOUT};
         {error, Error} ->
             {stop, Error, State}
     end;
@@ -136,7 +139,6 @@ handle_info({tcp_closed, _}, State) ->
 
 handle_info({tcp_error, _, Reason}, State) ->
     {stop, Reason, State}.
-
 
 
 %%--------------------------------------------------------------------
@@ -150,13 +152,16 @@ handle_info({tcp_error, _, Reason}, State) ->
 %% @spec terminate(Reason, State) -> void()
 %% @end
 %%--------------------------------------------------------------------
-terminate(_Reason, State) ->
-    gen_tcp:close(State#state.socket), 
-    case is_port(State#state.remote) of
-        true -> gen_tcp:close(State#state.remote);
+terminate(_Reason, #state{socket=Socket, remote=Remote}) ->
+    case is_port(Socket) of
+        true -> gen_tcp:close(Socket);
         false -> ok
     end,
-    ok.
+
+    case is_port(Remote) of
+        true -> gen_tcp:close(Remote);
+        false -> ok
+    end.
 
 %%--------------------------------------------------------------------
 %% @private
