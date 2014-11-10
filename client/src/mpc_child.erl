@@ -176,6 +176,8 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
+-spec start_process(port(), nonempty_string()) -> {ok, port()} |
+                                                  {error, any()}.
 start_process(Socket, Key) ->
     {ok, RemoteAddr} = application:get_env(make_proxy_client, remote_addr),
     {ok, RemotePort} = application:get_env(make_proxy_client, remote_port),
@@ -195,6 +197,7 @@ start_process(Socket, Key) ->
     end.
 
 
+-spec find_target(port()) -> {ok, <<_:32, _:_*8>>}.
 find_target(Socket) ->
     {ok, <<5:8, Nmethods:8>>} = gen_tcp:recv(Socket, 2),
     {ok, _Methods} = gen_tcp:recv(Socket, Nmethods),

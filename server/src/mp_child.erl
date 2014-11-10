@@ -180,6 +180,8 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
+-spec connect_to_remote(port(), nonempty_string()) -> {ok, {list()|tuple(), non_neg_integer()}} |
+                                                      {error, term()}.
 connect_to_remote(Socket, Key) ->
     {ok, EntrypedData} = gen_tcp:recv(Socket, 0),
 
@@ -193,6 +195,7 @@ connect_to_remote(Socket, Key) ->
     end.
 
 
+-spec parse_address(non_neg_integer(), binary()) -> {ok, {list()|tuple(), non_neg_integer()}}.
 parse_address(?IPV4, Data) ->
     <<Port:16, Destination/binary>> = Data,
     Address = list_to_tuple( binary_to_list(Destination) ),
@@ -210,6 +213,8 @@ parse_address(?DOMAIN, Data) ->
     {ok, {Address, Port}}.
 
 
+-spec connect_target(list() | tuple(), non_neg_integer()) -> {ok, port()} |
+                                                             {error, term()}.
 connect_target(Address, Port) ->
     connect_target(Address, Port, 2).
 
