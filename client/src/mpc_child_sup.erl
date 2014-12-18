@@ -1,18 +1,10 @@
-%%%-------------------------------------------------------------------
-%%% @author wang <yueyoum@gmail.com>
-%%% @copyright (C) 2014
-%%% @doc
-%%%
-%%% @end
-%%% Created : 2014-12-18 13:00
-%%%-------------------------------------------------------------------
--module(mpc_sup).
--author("wang").
+-module(mpc_child_sup).
 
 -behaviour(supervisor).
 
 %% API
--export([start_link/0]).
+-export([start_link/0,
+         start_child/1]).
 
 %% Supervisor callbacks
 -export([init/1]).
@@ -27,12 +19,14 @@
 %% @doc
 %% Starts the supervisor
 %%
+%% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
 %% @end
 %%--------------------------------------------------------------------
--spec(start_link() ->
-    {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
 start_link() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).
+
+start_child(Socket) ->
+    supervisor:start_child(?SERVER, [Socket]).
 
 %%%===================================================================
 %%% Supervisor callbacks
@@ -46,33 +40,18 @@ start_link() ->
 %% restart strategy, maximum restart frequency and child
 %% specifications.
 %%
+%% @spec init(Args) -> {ok, {SupFlags, [ChildSpec]}} |
+%%                     ignore |
+%%                     {error, Reason}
 %% @end
 %%--------------------------------------------------------------------
--spec(init(Args :: term()) ->
-    {ok, {SupFlags :: {RestartStrategy :: supervisor:strategy(),
-        MaxR :: non_neg_integer(), MaxT :: non_neg_integer()},
-        [ChildSpec :: supervisor:child_spec()]
-    }} |
-    ignore |
-    {error, Reason :: term()}).
 init([]) ->
-    RestartStrategy = one_for_one,
-    MaxRestarts = 10,
-    MaxSecondsBetweenRestarts = 3600,
+    Child = {mpc_child, {mpc_child, start_link, []},
+             temporary, brutal_kill, worker, [mpc_child]},
 
-    SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
-
-    Restart = permanent,
-    Shutdown = infinity,
-    Type = supervisor,
-
-    ChildAcceptorSup = {mpc_acceptor_sup, {mpc_acceptor_sup, start_link, []},
-                        Restart, Shutdown, Type, [mpc_child_sup]},
-
-    ChildChildSup = {mpc_child_sup, {mpc_child_sup, start_link, []},
-                     Restart, Shutdown, Type, [mpc_child_sup]},
-
-    {ok, {SupFlags, [ChildChildSup, ChildAcceptorSup]}}.
+    Children = [Child],
+    Restart = {simple_one_for_one, 0, 1},
+    {ok, {Restart, Children}}.
 
 %%%===================================================================
 %%% Internal functions

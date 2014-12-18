@@ -13,7 +13,7 @@
          terminate/2,
          code_change/3]).
 
--record(state, {key, lsock, socket, remote}).
+-record(state, {key, socket, remote, started=false}).
 
 -include("../../common/socks_type.hrl").
 -define(TIMEOUT, 1000 * 60 * 10).
@@ -29,8 +29,8 @@
 %% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
 %% @end
 %%--------------------------------------------------------------------
-start_link(LSock) ->
-    gen_server:start_link(?MODULE, [LSock], []).
+start_link(Socket) ->
+    gen_server:start_link(?MODULE, [Socket], []).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -47,9 +47,9 @@ start_link(LSock) ->
 %%                     {stop, Reason}
 %% @end
 %%--------------------------------------------------------------------
-init([LSock]) ->
+init([Socket]) ->
     {ok, Key} = application:get_env(make_proxy_client, key),
-    {ok, #state{key=Key, lsock=LSock}, 0}.
+    {ok, #state{key=Key, socket=Socket}, 0}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -95,20 +95,18 @@ handle_cast(_Info, State) ->
 
 
 %% the first message send to this child
-handle_info(timeout, #state{key=Key, lsock=LSock, socket=undefined} = State) ->
-    {ok, Socket} = gen_tcp:accept(LSock),
-    mpc_sup:start_child(),
+handle_info(timeout, #state{key=Key, socket=Socket, started = false} = State) ->
     case start_process(Socket, Key) of
         {ok, Remote} ->
             inet:setopts(Socket, [{active, once}]),
             inet:setopts(Remote, [{active, once}]),
-            {noreply, State#state{socket=Socket, remote=Remote}, ?TIMEOUT};
+            {noreply, State#state{socket=Socket, remote=Remote, started = true}, ?TIMEOUT};
         {error, Error} ->
             {stop, Error, State}
     end;
 
 %% send by OPT timeout
-handle_info(timeout, #state{socket=Socket} = State) when is_port(Socket) ->
+handle_info(timeout, #state{started = true} = State)->
     {stop, timeout, State};
 
 %% recv from client, and send to remote
@@ -176,8 +174,8 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
--spec start_process(port(), nonempty_string()) -> {ok, port()} |
-                                                  {error, any()}.
+-spec(start_process(port(), nonempty_string()) -> {ok, port()} |
+                                                  {error, any()}).
 start_process(Socket, Key) ->
     {ok, RemoteAddr} = application:get_env(make_proxy_client, remote_addr),
     {ok, RemotePort} = application:get_env(make_proxy_client, remote_port),
@@ -197,7 +195,7 @@ start_process(Socket, Key) ->
     end.
 
 
--spec find_target(port()) -> {ok, <<_:32, _:_*8>>}.
+%% -spec(find_target(Socket :: port()) -> {ok, <<_:32, _:_*8>>}).
 find_target(Socket) ->
     {ok, <<5:8, Nmethods:8>>} = gen_tcp:recv(Socket, 2),
     {ok, _Methods} = gen_tcp:recv(Socket, Nmethods),

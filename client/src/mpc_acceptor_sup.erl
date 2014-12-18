@@ -4,9 +4,9 @@
 %%% @doc
 %%%
 %%% @end
-%%% Created : 2014-12-18 13:00
+%%% Created : 2014-12-18 13:01
 %%%-------------------------------------------------------------------
--module(mpc_sup).
+-module(mpc_acceptor_sup).
 -author("wang").
 
 -behaviour(supervisor).
@@ -32,7 +32,15 @@
 -spec(start_link() ->
     {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
 start_link() ->
-    supervisor:start_link({local, ?SERVER}, ?MODULE, []).
+    Ip = {0, 0, 0, 0},
+    {ok, Port} = application:get_env(make_proxy_client, local_port),
+    {ok, LSock} = gen_tcp:listen(Port, [binary,
+        {ip, Ip},
+        {reuseaddr, true},
+        {active, false},
+        {backlog, 256}]),
+
+    supervisor:start_link({local, ?SERVER}, ?MODULE, [LSock]).
 
 %%%===================================================================
 %%% Supervisor callbacks
@@ -55,7 +63,7 @@ start_link() ->
     }} |
     ignore |
     {error, Reason :: term()}).
-init([]) ->
+init([LSock]) ->
     RestartStrategy = one_for_one,
     MaxRestarts = 10,
     MaxSecondsBetweenRestarts = 3600,
@@ -63,16 +71,18 @@ init([]) ->
     SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
 
     Restart = permanent,
-    Shutdown = infinity,
-    Type = supervisor,
+    Shutdown = 2000,
+    Type = worker,
 
-    ChildAcceptorSup = {mpc_acceptor_sup, {mpc_acceptor_sup, start_link, []},
-                        Restart, Shutdown, Type, [mpc_child_sup]},
+    Fun = fun(Index) ->
+        Id = list_to_atom("mpc_acceptor-" ++ integer_to_list(Index)),
+        {Id, {mpc_acceptor, start_link, [LSock]},
+        Restart, Shutdown, Type, [mpc_acceptor]}
+        end,
 
-    ChildChildSup = {mpc_child_sup, {mpc_child_sup, start_link, []},
-                     Restart, Shutdown, Type, [mpc_child_sup]},
+    Children = [Fun(Index) || Index <- lists:seq(1, 10)],
 
-    {ok, {SupFlags, [ChildChildSup, ChildAcceptorSup]}}.
+    {ok, {SupFlags, Children}}.
 
 %%%===================================================================
 %%% Internal functions
