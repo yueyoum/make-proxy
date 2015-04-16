@@ -4,16 +4,14 @@ all: server client
 
 .PHONY: server
 server:
-	erlc -o server/ebin +debug_info server/src/*.erl
-	erlc -o server/ebin +debug_info common/*.erl
+	cd server && ./rebar compile
 
 .PHONY: client
 client:
-	erlc -o client/ebin +debug_info client/src/*.erl
-	erlc -o client/ebin common/*.erl
+	cd client && ./rebar compile
 
 .PHONY: clean
 clean:
-	-rm -f client/ebin/*.beam
-	-rm -f server/ebin/*.beam
+	cd server && ./rebar clean
+	cd client && ./rebar clean
 

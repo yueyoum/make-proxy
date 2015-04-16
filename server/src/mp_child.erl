@@ -15,7 +15,7 @@
 
 -record(state, {key, lsock, socket, remote}).
 
--include("../../common/socks_type.hrl").
+-include("../../include/socks_type.hrl").
 
 -define(TIMEOUT, 1000 * 60 * 10).
 
