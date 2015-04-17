@@ -1,4 +1,4 @@
--module(mpc_child_sup).
+-module(mpc_http_child_sup).
 
 -behaviour(supervisor).
 
@@ -46,8 +46,8 @@ start_child(Socket) ->
 %% @end
 %%--------------------------------------------------------------------
 init([]) ->
-    Child = {mpc_child, {mpc_child, start_link, []},
-             temporary, brutal_kill, worker, [mpc_child]},
+    Child = {mpc_http_child, {mpc_http_child, start_link, []},
+             temporary, brutal_kill, worker, [mpc_http_child]},
 
     Children = [Child],
     Restart = {simple_one_for_one, 0, 1},

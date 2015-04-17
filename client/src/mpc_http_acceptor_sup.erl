@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : 2014-12-18 13:01
 %%%-------------------------------------------------------------------
--module(mpc_acceptor_sup).
+-module(mpc_http_acceptor_sup).
 -author("wang").
 
 -behaviour(supervisor).
@@ -32,10 +32,9 @@
 -spec(start_link() ->
     {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
 start_link() ->
-    Ip = {0, 0, 0, 0},
-    {ok, Port} = application:get_env(make_proxy_client, local_port),
+    {ok, Port} = application:get_env(make_proxy_client, local_http_port),
     {ok, LSock} = gen_tcp:listen(Port, [binary,
-        {ip, Ip},
+        {ip, {0, 0, 0, 0}},
         {reuseaddr, true},
         {active, false},
         {backlog, 256}]),
@@ -75,9 +74,9 @@ init([LSock]) ->
     Type = worker,
 
     Fun = fun(Index) ->
-        Id = list_to_atom("mpc_acceptor-" ++ integer_to_list(Index)),
-        {Id, {mpc_acceptor, start_link, [LSock]},
-        Restart, Shutdown, Type, [mpc_acceptor]}
+        Id = list_to_atom("mpc_http_acceptor-" ++ integer_to_list(Index)),
+        {Id, {mpc_http_acceptor, start_link, [LSock]},
+        Restart, Shutdown, Type, [mpc_http_acceptor]}
         end,
 
     Children = [Fun(Index) || Index <- lists:seq(1, 10)],

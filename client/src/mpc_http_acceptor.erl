@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : 2014-12-18 13:01
 %%%-------------------------------------------------------------------
--module(mpc_acceptor).
+-module(mpc_http_acceptor).
 -author("wang").
 
 -behaviour(gen_server).
@@ -109,7 +109,7 @@ handle_cast(_Request, State) ->
     {stop, Reason :: term(), NewState :: #state{}}).
 handle_info(timeout, LSock) ->
     {ok, Socket} = gen_tcp:accept(LSock),
-    {ok, Pid} = mpc_child_sup:start_child(Socket),
+    {ok, Pid} = mpc_http_child_sup:start_child(Socket),
     ok = gen_tcp:controlling_process(Socket, Pid),
     {noreply, LSock, 0}.
 
