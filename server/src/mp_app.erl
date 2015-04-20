@@ -27,17 +27,8 @@
 %% @end
 %%--------------------------------------------------------------------
 start(_StartType, _StartArgs) ->
-    Ip = {0, 0, 0, 0},
-    {ok, Port} = application:get_env(make_proxy_server, port),
-    {ok, LSock} = gen_tcp:listen(Port, [binary,
-                                        {ip, Ip},
-                                        {reuseaddr, true},
-                                        {active, false},
-                                        {packet, 4},
-                                        {backlog, 256}]),
-    case mp_sup:start_link(LSock) of
+    case mp_sup:start_link() of
         {ok, Pid} ->
-            mp_sup:start_child(),
             {ok, Pid};
         Other ->
             {error, Other}

@@ -1,4 +1,13 @@
--module(mp_sup).
+%%%-------------------------------------------------------------------
+%%% @author wang <yueyoum@gmail.com>
+%%% @copyright (C) 2015
+%%% @doc
+%%%
+%%% @end
+%%% Created : 2015-04-20 19:42
+%%%-------------------------------------------------------------------
+-module(mp_acceptor_sup).
+-author("wang").
 
 -behaviour(supervisor).
 
@@ -18,12 +27,20 @@
 %% @doc
 %% Starts the supervisor
 %%
-%% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
 %% @end
 %%--------------------------------------------------------------------
+-spec(start_link() ->
+    {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
 start_link() ->
-    supervisor:start_link({local, ?SERVER}, ?MODULE, []).
+    {ok, Port} = application:get_env(make_proxy_server, port),
+    {ok, LSock} = gen_tcp:listen(Port, [binary,
+        {ip, {0, 0, 0, 0}},
+        {reuseaddr, true},
+        {active, false},
+        {packet, 4},
+        {backlog, 256}]),
 
+    supervisor:start_link({local, ?SERVER}, ?MODULE, [LSock]).
 
 %%%===================================================================
 %%% Supervisor callbacks
@@ -37,29 +54,35 @@ start_link() ->
 %% restart strategy, maximum restart frequency and child
 %% specifications.
 %%
-%% @spec init(Args) -> {ok, {SupFlags, [ChildSpec]}} |
-%%                     ignore |
-%%                     {error, Reason}
 %% @end
 %%--------------------------------------------------------------------
-init([]) ->
+-spec(init(Args :: term()) ->
+    {ok, {SupFlags :: {RestartStrategy :: supervisor:strategy(),
+        MaxR :: non_neg_integer(), MaxT :: non_neg_integer()},
+        [ChildSpec :: supervisor:child_spec()]
+    }} |
+    ignore |
+    {error, Reason :: term()}).
+init([LSock]) ->
     RestartStrategy = one_for_one,
     MaxRestarts = 10,
     MaxSecondsBetweenRestarts = 600,
-
+    
     SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
-
+    
     Restart = permanent,
-    Shutdown = infinity,
-    Type = supervisor,
+    Shutdown = 2000,
+    Type = worker,
+    
+    Fun = fun(Index) ->
+        Id = list_to_atom("mp_acceptor-" ++ integer_to_list(Index)),
+        {Id, {mp_acceptor, start_link, [LSock]},
+            Restart, Shutdown, Type, [mp_acceptor]}
+    end,
 
-    AcceptorSup = {mp_acceptor_sup, {mp_acceptor_sup, start_link, []},
-        Restart, Shutdown, Type, [mp_acceptor_sup]},
-
-    ChildSup = {mp_child_sup, {mp_child_sup, start_link, []},
-        Restart, Shutdown, Type, [mp_child_sup]},
-
-    {ok, {SupFlags, [AcceptorSup, ChildSup]}}.
+    Children = [Fun(Index) || Index <- lists:seq(1, 10)],
+    
+    {ok, {SupFlags, Children}}.
 
 %%%===================================================================
 %%% Internal functions

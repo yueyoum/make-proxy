@@ -13,7 +13,7 @@
          terminate/2,
          code_change/3]).
 
--record(state, {key, lsock, socket, remote}).
+-record(state, {key, socket, remote}).
 
 -include("../../include/socks_type.hrl").
 
@@ -31,8 +31,8 @@
 %% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
 %% @end
 %%--------------------------------------------------------------------
-start_link(LSock) ->
-    gen_server:start_link(?MODULE, [LSock], []).
+start_link(Socket) ->
+    gen_server:start_link(?MODULE, [Socket], []).
 
 
 %%%===================================================================
@@ -50,9 +50,9 @@ start_link(LSock) ->
 %%                     {stop, Reason}
 %% @end
 %%--------------------------------------------------------------------
-init([LSock]) ->
+init([Socket]) ->
     {ok, Key} = application:get_env(make_proxy_server, key),
-    {ok, #state{key=Key, lsock=LSock}, 0}.
+    {ok, #state{key=Key, socket = Socket}, 0}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -99,9 +99,7 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 
 %% the first message send to this child
-handle_info(timeout, #state{key=Key, lsock=LSock, socket=undefined} = State) ->
-    {ok, Socket} = gen_tcp:accept(LSock),
-    mp_sup:start_child(),
+handle_info(timeout, #state{key=Key, socket=Socket, remote = undefined} = State) ->
     case connect_to_remote(Socket, Key) of
         {ok, Remote} ->
             inet:setopts(Socket, [{active, once}]),
