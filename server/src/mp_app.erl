@@ -31,7 +31,7 @@ start(_StartType, _StartArgs) ->
     {ok, LSock} = gen_tcp:listen(Port, [binary,
         {ip, {0, 0, 0, 0}},
         {reuseaddr, true},
-        {active, false},
+        {active, once},
         {packet, 4},
         {backlog, 256}]),
 
