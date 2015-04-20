@@ -2,9 +2,10 @@
 *.bak
 *.beam
 *.dump
-*.config
 *.log
 
+server.config
+client.config
 ebin
 .idea
 .rebar
