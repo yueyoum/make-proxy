@@ -179,8 +179,9 @@ code_change(_OldVsn, State, _Extra) ->
 start_process(Socket, Key) ->
     {ok, RemoteAddr} = application:get_env(make_proxy_client, remote_addr),
     {ok, RemotePort} = application:get_env(make_proxy_client, remote_port),
-    {ok, LocalPort} = application:get_env(make_proxy_client, local_port),
+    {ok, LocalPort} = application:get_env(make_proxy_client, local_socks5_port),
     {ok, Addr} = inet:getaddr(RemoteAddr, inet),
+
 
     {ok, Target} = find_target(Socket),
 

@@ -36,7 +36,7 @@ start_link() ->
     {ok, LSock} = gen_tcp:listen(Port, [binary,
         {ip, {0, 0, 0, 0}},
         {reuseaddr, true},
-        {active, false},
+        {active, once},
         {backlog, 256}]),
 
     supervisor:start_link({local, ?SERVER}, ?MODULE, [LSock]).

@@ -13,7 +13,7 @@
          terminate/2,
          code_change/3]).
 
--record(state, {key, socket, remote, started=false}).
+-record(state, {key, socket, remote}).
 
 -include("../../include//socks_type.hrl").
 -define(TIMEOUT, 1000 * 60 * 10).
@@ -59,7 +59,7 @@ start_link(Socket) ->
 %%--------------------------------------------------------------------
 init([Socket]) ->
     {ok, Key} = application:get_env(make_proxy_client, key),
-    {ok, #state{key=Key, socket=Socket}, 0}.
+    {ok, #state{key=Key, socket=Socket}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -103,30 +103,49 @@ handle_cast(_Info, State) ->
 %% @end
 %%--------------------------------------------------------------------
 
-
-%% the first message send to this child
-handle_info(timeout, #state{key=Key, socket=Socket, started = false} = State) ->
-    case start_process(Socket, Key) of
-        {ok, Remote} ->
-            inet:setopts(Socket, [{active, once}]),
-            inet:setopts(Remote, [{active, once}]),
-            {noreply, State#state{socket=Socket, remote=Remote, started = true}, ?TIMEOUT};
-        {error, Error} ->
-            {stop, Error, State}
-    end;
-
 %% send by OTP timeout
-handle_info(timeout, #state{started = true} = State)->
+handle_info(timeout, #state{remote =  Remote} = State) when is_port(Remote) ->
     {stop, timeout, State};
 
 %% recv from client, and send to remote
 handle_info({tcp, Socket, Request}, #state{key=Key, socket=Socket, remote=Remote} = State) ->
-    io:format("Client Got::~n", []),
-    io:format("~p~n", [Request]),
-    case gen_tcp:send(Remote, mp_crypto:encrypt(Key, Request)) of
+    io:format("Client Got: ~p~n", [Request]),
+
+    <<Header:2/binary, _Rest/binary>> = Request,
+
+    {ok, NewRemote} =
+    case lists:member(Header, ?HTTP_METHOD_HEADER) of
+        true ->
+            % New Domain Request
+            case is_port(Remote) of
+                true ->
+                    io:format("New Request in an OLD Socket!!!~n", []),
+                    gen_tcp:close(Remote);
+                false ->
+                    ok
+            end,
+
+            {ok, R} = connect_to_remote(),
+            {ok, Target} = find_target(Request),
+            ok = gen_tcp:send(R, mp_crypto:encrypt(Key, Target)),
+            {ok, R};
+        false ->
+            case is_port(Remote) of
+                true ->
+                    {ok, Remote};
+                false ->
+                    {ok, R} = connect_to_remote(),
+                    {ok, Target} = find_target(Request),
+                    ok = gen_tcp:send(R, mp_crypto:encrypt(Key, Target)),
+                    {ok, R}
+            end
+    end,
+
+
+    case gen_tcp:send(NewRemote, mp_crypto:encrypt(Key, Request)) of
         ok ->
             inet:setopts(Socket, [{active, once}]),
-            {noreply, State, ?TIMEOUT};
+            {noreply, State#state{remote = NewRemote}, ?TIMEOUT};
         {error, Error} ->
             {stop, Error, State}
     end;
@@ -134,7 +153,6 @@ handle_info({tcp, Socket, Request}, #state{key=Key, socket=Socket, remote=Remote
 %% recv from remote, and send back to client
 handle_info({tcp, Socket, Response}, #state{key=Key, socket=Client, remote=Socket} = State) ->
     {ok, RealData} = mp_crypto:decrypt(Key, Response),
-    io:format("Server Sent:: ~p~n", [binary_to_list(RealData)]),
     case gen_tcp:send(Client, RealData) of
         ok ->
             inet:setopts(Socket, [{active, once}]),
@@ -143,11 +161,24 @@ handle_info({tcp, Socket, Response}, #state{key=Key, socket=Client, remote=Socke
             {stop, Error, State}
     end;
 
-handle_info({tcp_closed, _}, State) ->
-    {stop, normal, State};
+handle_info({tcp_closed, Socket}, #state{socket = Client, remote = Remote} = State) ->
+    case Socket /= Client andalso Socket /= Remote of
+        true ->
+            % old connection
+            {noreply, State, ?TIMEOUT};
+        false ->
+            {stop, normal, State}
+    end;
 
-handle_info({tcp_error, _, Reason}, State) ->
-    {stop, Reason, State}.
+
+handle_info({tcp_error, Socket, Reason}, #state{socket = Client, remote = Remote} = State) ->
+    case Socket /= Client andalso Socket /= Remote of
+        true ->
+            % old connection
+            {noreply, State, ?TIMEOUT};
+        false ->
+            {stop, Reason, State}
+    end.
 
 
 %%--------------------------------------------------------------------
@@ -187,113 +218,36 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
--spec(start_process(port(), nonempty_string()) -> {ok, port()} |
-                                                  {error, any()}).
-start_process(Socket, Key) ->
-    case find_target(Socket) of
-        {ok, socks5, Target} ->
-            start_process_socks5(Socket, Key, Target);
-        {ok, http, Target, RecvedData} ->
-            start_process_http(Key, Target, RecvedData);
-        {error, Error} ->
-            {error, Error}
-    end.
-
-
-start_process_socks5(Socket, Key, Target) ->
-    {ok, RemoteAddr} = application:get_env(make_proxy_client, remote_addr),
-    {ok, RemotePort} = application:get_env(make_proxy_client, remote_port),
-    {ok, LocalPort} = application:get_env(make_proxy_client, local_port),
-    {ok, Addr} = inet:getaddr(RemoteAddr, inet),
-
-    case gen_tcp:connect(Addr, RemotePort, [binary, {active, false}, {packet, 4}]) of
-        {ok, RemoteSocket} ->
-            ok = gen_tcp:send(RemoteSocket, mp_crypto:encrypt(Key, Target)),
-            ok = gen_tcp:send(Socket, <<5, 0, 0, 1, <<0,0,0,0>>/binary, LocalPort:16>>),
-            {ok, RemoteSocket};
-        {error, Error} ->
-            {error, Error}
-    end.
-
-
-start_process_http(Key, Target, RecvedData) ->
-    io:format("start_process_http~n", []),
-    io:format("Target = ~p~nRecvedData = ~p~n", [Target, RecvedData]),
+connect_to_remote() ->
     {ok, RemoteAddr} = application:get_env(make_proxy_client, remote_addr),
     {ok, RemotePort} = application:get_env(make_proxy_client, remote_port),
     {ok, Addr} = inet:getaddr(RemoteAddr, inet),
 
-    case gen_tcp:connect(Addr, RemotePort, [binary, {active, false}, {packet, 4}]) of
-        {ok, RemoteSocket} ->
-            ok = gen_tcp:send(RemoteSocket, mp_crypto:encrypt(Key, Target)),
-            ok = gen_tcp:send(RemoteSocket, mp_crypto:encrypt(Key, RecvedData)),
-            {ok, RemoteSocket};
-        {error, Error} ->
-            {error, Error}
-    end.
+    gen_tcp:connect(Addr, RemotePort, [binary, {active, once}, {packet, 4}]).
 
-
-%% -spec(find_target(Socket :: port()) -> {ok, <<_:32, _:_*8>>}).
-find_target(Socket) ->
-    {ok, Header} = gen_tcp:recv(Socket, 2),
-    io:format("find_target, Header = ~p~n", [Header]),
-    find_target(Socket, Header).
-
-
-%% socks5 proxy
-find_target(Socket, <<5, Nmethods:8>>) ->
-    {ok, _Methods} = gen_tcp:recv(Socket, Nmethods),
-
-    gen_tcp:send(Socket, <<5:8/integer, 0:8/integer>>),
-    {ok, <<5:8, 1:8, _Rsv:8, AType:8>>} = gen_tcp:recv(Socket, 4),
-
-    case AType of
-        ?IPV4 ->
-            {ok, <<Address:32>>} = gen_tcp:recv(Socket, 4),
-            {ok, <<Port:16>>} = gen_tcp:recv(Socket, 2),
-            {ok, socks5, <<?IPV4, Port:16, Address:32>>};
-        ?IPV6 ->
-            {ok, <<Address:128>>} = gen_tcp:recv(Socket, 16),
-            {ok, <<Port:16>>} = gen_tcp:recv(Socket, 2),
-            {ok, socks5, <<?IPV6, Port:16, Address:128>>};
-        ?DOMAIN ->
-            {ok, <<DomainLen:8>>} = gen_tcp:recv(Socket, 1),
-            {ok, <<DomainBin/binary>>} = gen_tcp:recv(Socket, DomainLen),
-            {ok, <<Port:16>>} = gen_tcp:recv(Socket, 2),
-            {ok, socks5, <<?DOMAIN, Port:16, DomainLen:8, DomainBin/binary>>}
-    end;
 
 %% http proxy
-find_target(Socket, HttpMethod) ->
-    case lists:member(HttpMethod, ?HTTP_METHOD_HEADER) of
-        true ->
-            case find_target_of_http_request(Socket, <<>>) of
-                {ok, {Host, Port, RecvedData}} ->
-                    DomainLen = length(Host),
-                    Domain = list_to_binary(Host),
-                    % Replace with `HTTP/1.1` with `HTTP/1.0`
-                    {ok, http, <<?DOMAIN, Port:16, DomainLen:8, Domain/binary>>, <<HttpMethod/binary, RecvedData/binary>>};
-                {error, Error} ->
-                    {error, Error}
-            end;
-        false ->
-            {error, bad_request}
+find_target(Request) ->
+    case find_target_of_http_request(Request) of
+        {ok, {Host, Port}} ->
+            DomainLen = length(Host),
+            Domain = list_to_binary(Host),
+            {ok, <<?DOMAIN, Port:16, DomainLen:8, Domain/binary>>};
+        {Error, Reason} ->
+            {Error, Reason}
     end.
 
-find_target_of_http_request(Socket, Buff) ->
-    {ok, Data} = gen_tcp:recv(Socket, 0),
-    io:format("find_target_of_http_request~n", []),
-    io:format("~p~n", [Data]),
-    BuffData = <<Buff/binary, Data/binary>>,
-    case binary:split(BuffData, <<"\r\n">>) of
-        [BuffData] ->
+
+find_target_of_http_request(Request) ->
+    case binary:split(Request, <<"\r\n">>) of
+        [Request] ->
             % Need recv more...
-            find_target_of_http_request(Socket, BuffData);
+            {more, Request};
         [RequestHeader, _Rest] ->
             [_Method, Uri, _Version] = binary:split(RequestHeader, <<" ">>, [global]),
             case parse_http_request(Uri) of
                 {ok, {Host, Port}} ->
-                    {ok, {Host, Port, BuffData}};
+                    {ok, {Host, Port}};
                 {error, Reason} ->
                     {error, Reason}
             end
