@@ -3,7 +3,7 @@
     make_proxy_client,
     [
         {description, "Make Proxy Client"},
-        {vsn, "3.0.0"},
+        {vsn, "3.1.0"},
         {modules, [
             mpc_app,
             mpc_sup,
