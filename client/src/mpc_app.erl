@@ -38,7 +38,7 @@ start(_StartType, _StartArgs) ->
     {ok, HttpLSock} = gen_tcp:listen(HttpPort, [binary,
         {ip, {0, 0, 0, 0}},
         {reuseaddr, true},
-        {active, false},
+        {active, once},
         {backlog, 256}]),
 
     case mpc_sup:start_link([Socks5LSock, HttpLSock]) of

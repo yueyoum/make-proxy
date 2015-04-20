@@ -134,7 +134,7 @@ handle_cast(_Info, State) ->
 handle_info(timeout, #state{lsock = LSock, socket = undefined} = State) ->
     {ok, Socket} = gen_tcp:accept(LSock),
     mpc_http_sup:start_child(),
-    {ok, State#state{socket = Socket}, ?TIMEOUT};
+    {noreply, State#state{socket = Socket}, ?TIMEOUT};
 
 
 handle_info(timeout, #state{socket = Socket} = State) when is_port(Socket) ->
