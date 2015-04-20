@@ -15,7 +15,7 @@
 
 -record(state, {key, socket, remote}).
 
--include("../../include//socks_type.hrl").
+-include("../../include/socks_type.hrl").
 -define(TIMEOUT, 1000 * 60 * 10).
 -define(HTTP_METHOD_HEADER, [
     <<"GE">>,   % GET
@@ -119,8 +119,8 @@ handle_info({tcp, Socket, Request}, #state{key=Key, socket=Socket, remote=Remote
             % New Domain Request
             case is_port(Remote) of
                 true ->
-                    io:format("New Request in an OLD Socket!!!~n", []),
-                    gen_tcp:close(Remote);
+                    io:format("New Request in an OLD Socket!!!~n", []);
+%%                     gen_tcp:close(Remote);
                 false ->
                     ok
             end,
@@ -141,8 +141,30 @@ handle_info({tcp, Socket, Request}, #state{key=Key, socket=Socket, remote=Remote
             end
     end,
 
+    NewRequest =
+    case lists:member(Header, ?HTTP_METHOD_HEADER) of
+        true ->
+            % GET XXX...
+            [RequestHeader, _XRest] = binary:split(Request, <<"\r\n">>),
+            [_One, Two, _Three] = binary:split(RequestHeader, <<" ">>, [global]),
+            TwoSplited = binary:split(Two, <<"/">>, [global]),
+            io:format("========~n", []),
+            io:format("~p~n", [TwoSplited]),
+            io:format("========~n", []),
+            case TwoSplited of
+                [_, _, _] ->
+                    <<_One/binary, <<" ">>/binary, <<"/">>/binary, <<" ">>/binary,  _Three/binary, <<"\r\n">>/binary, _XRest/binary>>;
+                [_, _, _ | Paths] ->
+                    Path =  lists:foldr(fun(Item, Acc) -> <<Item/binary, Acc/binary>> end, <<>>, lists:map(fun(Item) -> << <<"/">>/binary, Item/binary >> end, Paths)),
+                    <<_One/binary, <<" ">>/binary, Path/binary, <<" ">>/binary,  _Three/binary, <<"\r\n">>/binary,  _XRest/binary >>
+            end;
+        false ->
+            Request
+    end,
 
-    case gen_tcp:send(NewRemote, mp_crypto:encrypt(Key, Request)) of
+
+
+    case gen_tcp:send(NewRemote, mp_crypto:encrypt(Key, NewRequest)) of
         ok ->
             inet:setopts(Socket, [{active, once}]),
             {noreply, State#state{remote = NewRemote}, ?TIMEOUT};
@@ -151,7 +173,7 @@ handle_info({tcp, Socket, Request}, #state{key=Key, socket=Socket, remote=Remote
     end;
 
 %% recv from remote, and send back to client
-handle_info({tcp, Socket, Response}, #state{key=Key, socket=Client, remote=Socket} = State) ->
+handle_info({tcp, Socket, Response}, #state{key=Key, socket=Client} = State) when Socket /= Client ->
     {ok, RealData} = mp_crypto:decrypt(Key, Response),
     case gen_tcp:send(Client, RealData) of
         ok ->
@@ -193,6 +215,7 @@ handle_info({tcp_error, Socket, Reason}, #state{socket = Client, remote = Remote
 %% @end
 %%--------------------------------------------------------------------
 terminate(_Reason, #state{socket=Socket, remote=Remote}) ->
+    io:format("~nTerminate... ~p~n~n", [_Reason]),
     case is_port(Socket) of
         true -> gen_tcp:close(Socket);
         false -> ok
@@ -259,10 +282,10 @@ parse_http_request(Uri) ->
             {ok, {Host, Port}};
         {ok, {_Sheme, _UserInfo, Host, Port, _Path, _Query, _Fragment}} ->
             {ok, {Host, Port}};
-%%         {error, {malformed_url, _, HostWithPort}} ->
-%%             % XXX workaround
-%%             [Host, Port] = string:tokens(HostWithPort, ":"),
-%%             {ok, {Host, list_to_integer(Port)}};
+        {error, {malformed_url, _, HostWithPort}} ->
+            % XXX workaround
+            [Host, Port] = string:tokens(HostWithPort, ":"),
+            {ok, {Host, list_to_integer(Port)}};
         {error, Reason} ->
             {error, Reason}
     end.
