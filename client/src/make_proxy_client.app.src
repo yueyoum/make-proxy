@@ -7,19 +7,15 @@
         {modules, [
             mpc_app,
             mpc_sup,
-            mpc_http_acceptor_sup,
-            mpc_http_child_sup,
-            mpc_socks5_acceptor_sup,
-            mpc_socks5_child_sup,
+            mpc_http_sup,
+            mpc_http_sup,
             mpc_http_child,
             mpc_socks5_child
         ]},
         {registered, [
             mpc_sup,
-            mpc_http_acceptor_sup,
-            mpc_http_child_sup,
-            mpc_socks5_acceptor_sup,
-            mpc_socks5_child_sup
+            mpc_http_sup,
+            mpc_socks5_sup
         ]},
         {applications, [kernel, stdlib]},
         {mod, {mpc_app, []}}

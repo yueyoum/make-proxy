@@ -1,10 +1,10 @@
--module(mpc_socks5_child_sup).
+-module(mpc_http_sup).
 
 -behaviour(supervisor).
 
 %% API
--export([start_link/0,
-         start_child/1]).
+-export([start_link/1,
+         start_child/0]).
 
 %% Supervisor callbacks
 -export([init/1]).
@@ -22,11 +22,11 @@
 %% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
 %% @end
 %%--------------------------------------------------------------------
-start_link() ->
-    supervisor:start_link({local, ?SERVER}, ?MODULE, []).
+start_link(LSock) ->
+    supervisor:start_link({local, ?SERVER}, ?MODULE, [LSock]).
 
-start_child(Socket) ->
-    supervisor:start_child(?SERVER, [Socket]).
+start_child() ->
+    supervisor:start_child(?SERVER, []).
 
 %%%===================================================================
 %%% Supervisor callbacks
@@ -45,9 +45,9 @@ start_child(Socket) ->
 %%                     {error, Reason}
 %% @end
 %%--------------------------------------------------------------------
-init([]) ->
-    Child = {mpc_socks5_child, {mpc_socks5_child, start_link, []},
-             temporary, brutal_kill, worker, [mpc_socks5_child]},
+init([LSock]) ->
+    Child = {mpc_http_child, {mpc_http_child, start_link, [LSock]},
+             temporary, brutal_kill, worker, [mpc_http_child]},
 
     Children = [Child],
     Restart = {simple_one_for_one, 0, 1},

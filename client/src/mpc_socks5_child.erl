@@ -13,7 +13,7 @@
          terminate/2,
          code_change/3]).
 
--record(state, {key, socket, remote, started=false}).
+-record(state, {key, lsock, socket, remote}).
 
 -include("../../include/socks_type.hrl").
 -define(TIMEOUT, 1000 * 60 * 10).
@@ -29,8 +29,8 @@
 %% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
 %% @end
 %%--------------------------------------------------------------------
-start_link(Socket) ->
-    gen_server:start_link(?MODULE, [Socket], []).
+start_link(LSock) ->
+    gen_server:start_link(?MODULE, [LSock], []).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -47,9 +47,9 @@ start_link(Socket) ->
 %%                     {stop, Reason}
 %% @end
 %%--------------------------------------------------------------------
-init([Socket]) ->
+init([LSock]) ->
     {ok, Key} = application:get_env(make_proxy_client, key),
-    {ok, #state{key=Key, socket=Socket}, 0}.
+    {ok, #state{key=Key, lsock = LSock}, 0}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -93,21 +93,24 @@ handle_cast(_Info, State) ->
 %% @end
 %%--------------------------------------------------------------------
 
+handle_info(timeout, #state{key = Key, lsock = LSock, socket = undefined} = State) ->
+    {ok, Socket} = gen_tcp:accept(LSock),
+    mpc_socks5_sup:start_child(),
 
-%% the first message send to this child
-handle_info(timeout, #state{key=Key, socket=Socket, started = false} = State) ->
     case start_process(Socket, Key) of
         {ok, Remote} ->
             ok = inet:setopts(Socket, [{active, once}]),
             ok = inet:setopts(Remote, [{active, once}]),
-            {noreply, State#state{socket=Socket, remote=Remote, started = true}, ?TIMEOUT};
+            {noreply, State#state{socket=Socket, remote=Remote}, ?TIMEOUT};
         {error, Error} ->
             {stop, Error, State}
     end;
 
+
 %% send by OPT timeout
-handle_info(timeout, #state{started = true} = State)->
+handle_info(timeout, #state{socket = Socket} = State) when is_port(Socket) ->
     {stop, timeout, State};
+
 
 %% recv from client, and send to remote
 handle_info({tcp, Socket, Request}, #state{key=Key, socket=Socket, remote=Remote} = State) ->

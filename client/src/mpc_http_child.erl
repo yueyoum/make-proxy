@@ -13,7 +13,7 @@
          terminate/2,
          code_change/3]).
 
--record(state, {key, socket, remote}).
+-record(state, {key, lsock, socket, remote}).
 
 -include("../../include/socks_type.hrl").
 -define(TIMEOUT, 1000 * 60 * 10).
@@ -39,8 +39,8 @@
 %% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
 %% @end
 %%--------------------------------------------------------------------
-start_link(Socket) ->
-    gen_server:start_link(?MODULE, [Socket], []).
+start_link(LSock) ->
+    gen_server:start_link(?MODULE, [LSock], []).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -57,14 +57,9 @@ start_link(Socket) ->
 %%                     {stop, Reason}
 %% @end
 %%--------------------------------------------------------------------
-init([Socket]) ->
-    case inet:setopts(Socket, [{active, once}]) of
-        ok ->
-            {ok, Key} = application:get_env(make_proxy_client, key),
-            {ok, #state{key=Key, socket=Socket}};
-        {error, Reason} ->
-            {stop, Reason}
-    end.
+init([LSock]) ->
+    {ok, Key} = application:get_env(make_proxy_client, key),
+    {ok, #state{key = Key, lsock = LSock}, 0}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -136,8 +131,13 @@ handle_cast(_Info, State) ->
 %% @end
 %%--------------------------------------------------------------------
 
-%% send by OTP timeout
-handle_info(timeout, #state{remote =  Remote} = State) when is_port(Remote) ->
+handle_info(timeout, #state{lsock = LSock, socket = undefined} = State) ->
+    {ok, Socket} = gen_tcp:accept(LSock),
+    mpc_http_sup:start_child(),
+    {ok, State#state{socket = Socket}, ?TIMEOUT};
+
+
+handle_info(timeout, #state{socket = Socket} = State) when is_port(Socket) ->
     {stop, timeout, State};
 
 

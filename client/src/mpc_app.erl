@@ -27,8 +27,24 @@
 %% @end
 %%--------------------------------------------------------------------
 start(_StartType, _StartArgs) ->
-    case mpc_sup:start_link() of
+    {ok, Socsk5Port} = application:get_env(make_proxy_client, local_socks5_port),
+    {ok, Socks5LSock} = gen_tcp:listen(Socsk5Port, [binary,
+        {ip, {0, 0, 0, 0}},
+        {reuseaddr, true},
+        {active, false},
+        {backlog, 256}]),
+
+    {ok, HttpPort} = application:get_env(make_proxy_client, local_http_port),
+    {ok, HttpLSock} = gen_tcp:listen(HttpPort, [binary,
+        {ip, {0, 0, 0, 0}},
+        {reuseaddr, true},
+        {active, false},
+        {backlog, 256}]),
+
+    case mpc_sup:start_link([Socks5LSock, HttpLSock]) of
         {ok, Pid} ->
+            mpc_socks5_sup:start_child(),
+            mpc_http_sup:start_child(),
             {ok, Pid};
         Other ->
             {error, Other}

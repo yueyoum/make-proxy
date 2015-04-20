@@ -12,7 +12,7 @@
 -behaviour(supervisor).
 
 %% API
--export([start_link/0]).
+-export([start_link/1]).
 
 %% Supervisor callbacks
 -export([init/1]).
@@ -29,10 +29,10 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec(start_link() ->
+-spec(start_link([port()]) ->
     {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
-start_link() ->
-    supervisor:start_link({local, ?SERVER}, ?MODULE, []).
+start_link([Socks5LSock, HttpLSock]) ->
+    supervisor:start_link({local, ?SERVER}, ?MODULE, [Socks5LSock, HttpLSock]).
 
 %%%===================================================================
 %%% Supervisor callbacks
@@ -55,10 +55,10 @@ start_link() ->
     }} |
     ignore |
     {error, Reason :: term()}).
-init([]) ->
+init([Socks5LSock, HttpLSock]) ->
     RestartStrategy = one_for_one,
-    MaxRestarts = 10,
-    MaxSecondsBetweenRestarts = 600,
+    MaxRestarts = 0,
+    MaxSecondsBetweenRestarts = 1,
 
     SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
 
@@ -66,19 +66,13 @@ init([]) ->
     Shutdown = infinity,
     Type = supervisor,
 
-    Socks5AcceptorSup = {mpc_socks5_acceptor_sup, {mpc_socks5_acceptor_sup, start_link, []},
-                        Restart, Shutdown, Type, [mpc_socks5_acceptor_sup]},
+    Socks5Sup = {mpc_socks5_sup, {mpc_socks5_sup, start_link, [Socks5LSock]},
+                        Restart, Shutdown, Type, [mpc_socks5_sup]},
 
-    HttpAcceptorSup = {mpc_http_acceptor_sup, {mpc_http_acceptor_sup, start_link, []},
-                       Restart, Shutdown, Type, [mpc_http_acceptor_sup]},
+    HttpSup = {mpc_http_sup, {mpc_http_sup, start_link, [HttpLSock]},
+                       Restart, Shutdown, Type, [mpc_http_sup]},
 
-    Socks5ChildSup = {mpc_socks5_child_sup, {mpc_socks5_child_sup, start_link, []},
-                     Restart, Shutdown, Type, [mpc_socks5_child_sup]},
-
-    HttpChildSup = {mpc_http_child_sup, {mpc_http_child_sup, start_link, []},
-                    Restart, Shutdown, Type, [mpc_http_child_sup]},
-
-    {ok, {SupFlags, [Socks5ChildSup, HttpChildSup, Socks5AcceptorSup, HttpAcceptorSup]}}.
+    {ok, {SupFlags, [Socks5Sup, HttpSup]}}.
 
 %%%===================================================================
 %%% Internal functions
