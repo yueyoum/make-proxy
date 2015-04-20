@@ -36,7 +36,7 @@ start_link() ->
     {ok, LSock} = gen_tcp:listen(Port, [binary,
         {ip, {0, 0, 0, 0}},
         {reuseaddr, true},
-        {active, false},
+        {active, once},
         {packet, 4},
         {backlog, 256}]),
 
@@ -66,7 +66,7 @@ start_link() ->
 init([LSock]) ->
     RestartStrategy = one_for_one,
     MaxRestarts = 10,
-    MaxSecondsBetweenRestarts = 600,
+    MaxSecondsBetweenRestarts = 60,
     
     SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
     

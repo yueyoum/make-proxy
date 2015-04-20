@@ -65,7 +65,7 @@ start_link() ->
 init([LSock]) ->
     RestartStrategy = one_for_one,
     MaxRestarts = 10,
-    MaxSecondsBetweenRestarts = 3600,
+    MaxSecondsBetweenRestarts = 60,
 
     SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
 
