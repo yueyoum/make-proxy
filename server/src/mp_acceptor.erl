@@ -111,7 +111,7 @@ handle_cast(_Request, State) ->
 handle_info(timeout, LSock) ->
     {ok, Socket} = gen_tcp:accept(LSock),
     {ok, Pid} = mp_child_sup:start_child(Socket),
-    ok = gen_tcp:controlling_process(Socket, Pid),
+    gen_tcp:controlling_process(Socket, Pid),
     {noreply, LSock, 0}.
 
 %%--------------------------------------------------------------------

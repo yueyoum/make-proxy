@@ -52,7 +52,7 @@ start_link(Socket) ->
 %%--------------------------------------------------------------------
 init([Socket]) ->
     {ok, Key} = application:get_env(make_proxy_server, key),
-    {ok, #state{key=Key, socket = Socket}, 0}.
+    {ok, #state{key=Key, socket = Socket}, ?TIMEOUT}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -86,7 +86,6 @@ handle_cast(_Msg, State) ->
     {noreply, State}.
 
 
-
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
@@ -98,20 +97,20 @@ handle_cast(_Msg, State) ->
 %% @end
 %%--------------------------------------------------------------------
 
-%% the first message send to this child
-handle_info(timeout, #state{key=Key, socket=Socket, remote = undefined} = State) ->
-    case connect_to_remote(Socket, Key) of
-        {ok, Remote} ->
-            inet:setopts(Socket, [{active, once}]),
-            inet:setopts(Remote, [{active, once}]),
-            {noreply, State#state{socket=Socket, remote=Remote}, ?TIMEOUT};
-        {error, Error} ->
-            {stop, Error, State}
-    end;
-
 %% send by OPT timeout
 handle_info(timeout, #state{socket=Socket} = State) when is_port(Socket) ->
     {stop, timeout, State};
+
+%% first message from client
+handle_info({tcp, Socket, Request}, #state{key = Key, socket = Socket, remote = undefined} = State) ->
+    case connect_to_remote(Request, Key) of
+        {ok, Remote} ->
+            inet:setopts(Socket, [{active, once}]),
+            inet:setopts(Remote, [{active, once}]),
+            {noreply, State#state{remote=Remote}, ?TIMEOUT};
+        {error, Error} ->
+            {stop, Error, State}
+    end;
 
 %% recv from client, and send to server
 handle_info({tcp, Socket, Request}, #state{key=Key, socket=Socket, remote=Remote} = State) ->
@@ -178,12 +177,10 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
--spec connect_to_remote(port(), nonempty_string()) -> {ok, {list()|tuple(), non_neg_integer()}} |
+-spec connect_to_remote(binary(), nonempty_string()) -> {ok, {list()|tuple(), non_neg_integer()}} |
                                                       {error, term()}.
-connect_to_remote(Socket, Key) ->
-    {ok, EntrypedData} = gen_tcp:recv(Socket, 0),
-
-    case mp_crypto:decrypt(Key, EntrypedData) of
+connect_to_remote(Data, Key) ->
+    case mp_crypto:decrypt(Key, Data) of
         {ok, RealData} ->
             <<AType:8, Rest/binary>> = RealData,
             {ok, {Address, Port}} = parse_address(AType, Rest),
