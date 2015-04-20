@@ -13,7 +13,7 @@
          terminate/2,
          code_change/3]).
 
--record(state, {key, socket, remote}).
+-record(state, {key, socket, remote, started = false}).
 
 -include("../../include/socks_type.hrl").
 
@@ -51,13 +51,8 @@ start_link(Socket) ->
 %% @end
 %%--------------------------------------------------------------------
 init([Socket]) ->
-    case inet:setopts(Socket, [{active, once}]) of
-        ok ->
-            {ok, Key} = application:get_env(make_proxy_server, key),
-            {ok, #state{key=Key, socket = Socket}, ?TIMEOUT};
-        {error, Reason} ->
-            {stop, Reason}
-    end.
+    {ok, Key} = application:get_env(make_proxy_server, key),
+    {ok, #state{key=Key, socket = Socket}, 0}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -102,8 +97,16 @@ handle_cast(_Msg, State) ->
 %% @end
 %%--------------------------------------------------------------------
 
+handle_info(timeout, #state{socket = Socket, started = false} = State) ->
+    case inet:setopts(Socket, [{active, once}]) of
+        ok ->
+            {noreply, State#state{started = true}, ?TIMEOUT};
+        {error, Reason} ->
+            {stop, Reason, State}
+    end;
+
 %% send by OPT timeout
-handle_info(timeout, #state{socket=Socket} = State) when is_port(Socket) ->
+handle_info(timeout, #state{started = true} = State) ->
     {stop, timeout, State};
 
 %% first message from client
