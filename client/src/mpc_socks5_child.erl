@@ -98,8 +98,8 @@ handle_cast(_Info, State) ->
 handle_info(timeout, #state{key=Key, socket=Socket, started = false} = State) ->
     case start_process(Socket, Key) of
         {ok, Remote} ->
-            inet:setopts(Socket, [{active, once}]),
-            inet:setopts(Remote, [{active, once}]),
+            ok = inet:setopts(Socket, [{active, once}]),
+            ok = inet:setopts(Remote, [{active, once}]),
             {noreply, State#state{socket=Socket, remote=Remote, started = true}, ?TIMEOUT};
         {error, Error} ->
             {stop, Error, State}
@@ -113,7 +113,7 @@ handle_info(timeout, #state{started = true} = State)->
 handle_info({tcp, Socket, Request}, #state{key=Key, socket=Socket, remote=Remote} = State) ->
     case gen_tcp:send(Remote, mp_crypto:encrypt(Key, Request)) of
         ok ->
-            inet:setopts(Socket, [{active, once}]),
+            ok = inet:setopts(Socket, [{active, once}]),
             {noreply, State, ?TIMEOUT};
         {error, Error} ->
             {stop, Error, State}
@@ -124,7 +124,7 @@ handle_info({tcp, Socket, Response}, #state{key=Key, socket=Client, remote=Socke
     {ok, RealData} = mp_crypto:decrypt(Key, Response),
     case gen_tcp:send(Client, RealData) of
         ok ->
-            inet:setopts(Socket, [{active, once}]),
+            ok = inet:setopts(Socket, [{active, once}]),
             {noreply, State, ?TIMEOUT};
         {error, Error} ->
             {stop, Error, State}

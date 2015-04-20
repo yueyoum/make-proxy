@@ -51,8 +51,13 @@ start_link(Socket) ->
 %% @end
 %%--------------------------------------------------------------------
 init([Socket]) ->
-    {ok, Key} = application:get_env(make_proxy_server, key),
-    {ok, #state{key=Key, socket = Socket}, ?TIMEOUT}.
+    case inet:setopts(Socket, [{active, once}]) of
+        ok ->
+            {ok, Key} = application:get_env(make_proxy_server, key),
+            {ok, #state{key=Key, socket = Socket}, ?TIMEOUT};
+        {error, Reason} ->
+            {stop, Reason}
+    end.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -105,8 +110,8 @@ handle_info(timeout, #state{socket=Socket} = State) when is_port(Socket) ->
 handle_info({tcp, Socket, Request}, #state{key = Key, socket = Socket, remote = undefined} = State) ->
     case connect_to_remote(Request, Key) of
         {ok, Remote} ->
-            inet:setopts(Socket, [{active, once}]),
-            inet:setopts(Remote, [{active, once}]),
+            ok = inet:setopts(Socket, [{active, once}]),
+            ok = inet:setopts(Remote, [{active, once}]),
             {noreply, State#state{remote=Remote}, ?TIMEOUT};
         {error, Error} ->
             {stop, Error, State}
@@ -117,7 +122,7 @@ handle_info({tcp, Socket, Request}, #state{key=Key, socket=Socket, remote=Remote
     {ok, RealData} = mp_crypto:decrypt(Key, Request),
     case gen_tcp:send(Remote, RealData) of
         ok ->
-            inet:setopts(Socket, [{active, once}]),
+            ok = inet:setopts(Socket, [{active, once}]),
             {noreply, State, ?TIMEOUT};
         {error, Error} ->
             {stop, Error, State}
@@ -127,7 +132,7 @@ handle_info({tcp, Socket, Request}, #state{key=Key, socket=Socket, remote=Remote
 handle_info({tcp, Socket, Response}, #state{key=Key, socket=Client, remote=Socket} = State) ->
     case gen_tcp:send(Client, mp_crypto:encrypt(Key, Response)) of
         ok ->
-            inet:setopts(Socket, [{active, once}]),
+            ok = inet:setopts(Socket, [{active, once}]),
             {noreply, State, ?TIMEOUT};
         {error, Error} ->
             {stop, Error, State}

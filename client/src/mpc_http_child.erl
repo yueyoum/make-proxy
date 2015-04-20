@@ -58,8 +58,13 @@ start_link(Socket) ->
 %% @end
 %%--------------------------------------------------------------------
 init([Socket]) ->
-    {ok, Key} = application:get_env(make_proxy_client, key),
-    {ok, #state{key=Key, socket=Socket}}.
+    case inet:setopts(Socket, [{active, once}]) of
+        ok ->
+            {ok, Key} = application:get_env(make_proxy_client, key),
+            {ok, #state{key=Key, socket=Socket}};
+        {error, Reason} ->
+            {stop, Reason}
+    end.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -96,7 +101,7 @@ handle_cast({http_new, Socket, Request}, #state{key = Key, socket = Socket} = St
         {ok, Target, NormalizedReqeust} ->
             ok = gen_tcp:send(Remote, mp_crypto:encrypt(Key, Target)),
             ok = gen_tcp:send(Remote, mp_crypto:encrypt(Key, NormalizedReqeust)),
-            inet:setopts(Socket, [{active, once}]),
+            ok = inet:setopts(Socket, [{active, once}]),
             {noreply, State#state{remote = Remote}, ?TIMEOUT};
         {error, Reason} ->
             {stop, Reason, State}
@@ -154,7 +159,7 @@ handle_info({tcp, Socket, Response}, #state{key=Key, socket=Client} = State) whe
     {ok, RealData} = mp_crypto:decrypt(Key, Response),
     case gen_tcp:send(Client, RealData) of
         ok ->
-            inet:setopts(Socket, [{active, once}]),
+            ok = inet:setopts(Socket, [{active, once}]),
             {noreply, State, ?TIMEOUT};
         {error, Error} ->
             {stop, Error, State}
