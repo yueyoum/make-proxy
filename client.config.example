@@ -4,7 +4,8 @@
     [
         {remote_addr, "127.0.0.1"},
         {remote_port, 7071},
-        {local_port, 7070},
+        {local_socks5_port, 7070},
+        {local_http_port, 7171},
         {key, "1234567890abcdef"}
     ]    
 }

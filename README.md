@@ -8,6 +8,8 @@ This project can take you through a Firewall via Socks5 proxy.
 
 with the great erlang, the project has the following features:
 
+*   socks5 / http proxy. (https not supported)
+
 *   Robustness. never down.
 
 *   Scalable. handle thousands requests at the same time easily.
@@ -76,7 +78,7 @@ In my daily use, (1 cpu, 512MB RAM VPS)
     #### server.config
 
     *   port.   which port that the server listen on
-    *   key.    key to encrypt/decrypt data
+    *   key.    key to encrypt/decrypt data **16bytes**
 
 4.  `make server`
 5.  `./start_server.sh`
@@ -94,7 +96,8 @@ In my daily use, (1 cpu, 512MB RAM VPS)
 
     *   remote_addr. IP of the compute where `make-proxy` server runs
     *   remote_port. PORT that make-proxy server using. **SAME** as the defination of `server.config`.
-    *   local_port.  which port the make-proxy client will listen on.
+    *   local_socks5_port.  this port is used for socks5 proxy.
+    *   local_http_port.    this port is used for http proxy.
     *   key.    key to encrypt/decrypt data. this **MUST AS SAME AS** the defination of `server.config`.
 
 4.  `make client`
@@ -111,6 +114,5 @@ PORT = `7070`  (if not changed in the client.config)
 ## TODO
 
 1.  Support Socks5 Username/Password Authorize
-2.  Support HTTP Proxy
-3.  Traffic Statistics
+2.  Traffic Statistics
 

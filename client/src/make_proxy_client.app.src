@@ -3,16 +3,24 @@
     make_proxy_client,
     [
         {description, "Make Proxy Client"},
-        {vsn, "2.0.0"},
+        {vsn, "3.0.0"},
         {modules, [
             mpc_app,
             mpc_sup,
-            mpc_acceptor_sup,
-            mpc_child_sup,
-            mpc_acceptor,
-            mpc_child
+            mpc_http_acceptor_sup,
+            mpc_http_child_sup,
+            mpc_socks5_acceptor_sup,
+            mpc_socks5_child_sup,
+            mpc_http_child,
+            mpc_socks5_child
         ]},
-        {registered, [mpc_sup, mpc_acceptor_sup, mpc_child_sup]},
+        {registered, [
+            mpc_sup,
+            mpc_http_acceptor_sup,
+            mpc_http_child_sup,
+            mpc_socks5_acceptor_sup,
+            mpc_socks5_child_sup
+        ]},
         {applications, [kernel, stdlib]},
         {mod, {mpc_app, []}}
     ]

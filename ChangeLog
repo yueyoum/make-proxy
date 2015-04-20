@@ -1,10 +1,15 @@
+# 2015-04-20
+    * Version 3.0.0
+    * Add Http Proxy
+    * Acceptor Pool
+
 # 2014-11-09
 	* Version 2.0.0
 	* Restruct the Application
 	* Using aes_cbc128 to encryt data
 
 # 2013-07-08
-	*	Make project as an OTP Application
+	* Make project as an OTP Application
 
 # 2013-03-30
-	*	Version 0.1.0, First release
+	* Version 0.1.0, First release
