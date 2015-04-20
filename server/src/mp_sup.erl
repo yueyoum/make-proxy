@@ -3,7 +3,8 @@
 -behaviour(supervisor).
 
 %% API
--export([start_link/0]).
+-export([start_link/1,
+         start_child/0]).
 
 %% Supervisor callbacks
 -export([init/1]).
@@ -21,9 +22,11 @@
 %% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
 %% @end
 %%--------------------------------------------------------------------
-start_link() ->
-    supervisor:start_link({local, ?SERVER}, ?MODULE, []).
+start_link(LSock) ->
+    supervisor:start_link({local, ?SERVER}, ?MODULE, [LSock]).
 
+start_child() ->
+    supervisor:start_child(?SERVER, []).
 
 %%%===================================================================
 %%% Supervisor callbacks
@@ -42,24 +45,21 @@ start_link() ->
 %%                     {error, Reason}
 %% @end
 %%--------------------------------------------------------------------
-init([]) ->
-    RestartStrategy = one_for_one,
-    MaxRestarts = 10,
-    MaxSecondsBetweenRestarts = 600,
+init([LSock]) ->
+    RestartStrategy = simple_one_for_one,
+    MaxRestarts = 0,
+    MaxSecondsBetweenRestarts = 1,
 
     SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
 
-    Restart = permanent,
-    Shutdown = infinity,
-    Type = supervisor,
+    Restart = temporary,
+    Shutdown = brutal_kill,
+    Type = worker,
 
-    AcceptorSup = {mp_acceptor_sup, {mp_acceptor_sup, start_link, []},
-        Restart, Shutdown, Type, [mp_acceptor_sup]},
+    Child = {mp_child, {mp_child, start_link, [LSock]},
+        Restart, Shutdown, Type, [mp_child]},
 
-    ChildSup = {mp_child_sup, {mp_child_sup, start_link, []},
-        Restart, Shutdown, Type, [mp_child_sup]},
-
-    {ok, {SupFlags, [AcceptorSup, ChildSup]}}.
+    {ok, {SupFlags, [Child]}}.
 
 %%%===================================================================
 %%% Internal functions

@@ -13,7 +13,7 @@
          terminate/2,
          code_change/3]).
 
--record(state, {key, socket, remote, started = false}).
+-record(state, {key, lsock, socket, remote}).
 
 -include("../../include/socks_type.hrl").
 
@@ -31,8 +31,8 @@
 %% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
 %% @end
 %%--------------------------------------------------------------------
-start_link(Socket) ->
-    gen_server:start_link(?MODULE, [Socket], []).
+start_link(LSock) ->
+    gen_server:start_link(?MODULE, [LSock], []).
 
 
 %%%===================================================================
@@ -50,9 +50,9 @@ start_link(Socket) ->
 %%                     {stop, Reason}
 %% @end
 %%--------------------------------------------------------------------
-init([Socket]) ->
+init([LSock]) ->
     {ok, Key} = application:get_env(make_proxy_server, key),
-    {ok, #state{key=Key, socket = Socket}, 0}.
+    {ok, #state{key=Key, lsock = LSock}, 0}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -97,17 +97,16 @@ handle_cast(_Msg, State) ->
 %% @end
 %%--------------------------------------------------------------------
 
-handle_info(timeout, #state{socket = Socket, started = false} = State) ->
-    case inet:setopts(Socket, [{active, once}]) of
-        ok ->
-            {noreply, State#state{started = true}, ?TIMEOUT};
-        {error, Reason} ->
-            {stop, Reason, State}
-    end;
+handle_info(timeout, #state{lsock = LSock, socket = undefined} = State) ->
+    {ok, Socket} = gen_tcp:accept(LSock),
+    mp_sup:start_child(),
+    {noreply, State#state{socket=Socket}, ?TIMEOUT};
+
 
 %% send by OPT timeout
-handle_info(timeout, #state{started = true} = State) ->
+handle_info(timeout, #state{socket = Socket} = State) when is_port(Socket) ->
     {stop, timeout, State};
+
 
 %% first message from client
 handle_info({tcp, Socket, Request}, #state{key = Key, socket = Socket, remote = undefined} = State) ->
@@ -120,6 +119,7 @@ handle_info({tcp, Socket, Request}, #state{key = Key, socket = Socket, remote = 
             {stop, Error, State}
     end;
 
+
 %% recv from client, and send to server
 handle_info({tcp, Socket, Request}, #state{key=Key, socket=Socket, remote=Remote} = State) ->
     {ok, RealData} = mp_crypto:decrypt(Key, Request),
@@ -130,6 +130,7 @@ handle_info({tcp, Socket, Request}, #state{key=Key, socket=Socket, remote=Remote
         {error, Error} ->
             {stop, Error, State}
     end;
+
 
 %% recv from server, and send back to client
 handle_info({tcp, Socket, Response}, #state{key=Key, socket=Client, remote=Socket} = State) ->

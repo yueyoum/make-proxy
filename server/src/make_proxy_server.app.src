@@ -7,14 +7,10 @@
         {modules, [
             mp_app,
             mp_sup,
-            mp_acceptor_sup,
-            mp_child_sup,
             mp_child
         ]},
         {registered, [
-            mp_sup,
-            mp_acceptor_sup,
-            mp_child_sup
+            mp_sup
         ]},
         {applications, [kernel, stdlib]},
         {mod, {mp_app, []}}
