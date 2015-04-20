@@ -89,6 +89,34 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+
+handle_cast({http_new, Socket, Request}, #state{key = Key, socket = Socket} = State) ->
+    {ok, Remote} = connect_to_remote(),
+    case parse_request(Request) of
+        {ok, Target, NormalizedReqeust} ->
+            ok = gen_tcp:send(Remote, mp_crypto:encrypt(Key, Target)),
+            ok = gen_tcp:send(Remote, mp_crypto:encrypt(Key, NormalizedReqeust)),
+            inet:setopts(Socket, [{active, once}]),
+            {noreply, State#state{remote = Remote}, ?TIMEOUT};
+        {error, Reason} ->
+            {stop, Reason, State}
+    end;
+
+
+handle_cast({http_continue, Socket, Request}, #state{key = Key, socket = Socket, remote = Remote} = State) ->
+    NewRemote =
+        case is_port(Remote) of
+            true ->
+                Remote;
+            false ->
+                {ok, R} = connect_to_remote(),
+                R
+        end,
+
+    ok = gen_tcp:send(NewRemote, mp_crypto:encrypt(Key, Request)),
+    {noreply, State#state{remote = NewRemote}, ?TIMEOUT};
+
+
 handle_cast(_Info, State) ->
     {noreply, State}.
 
@@ -107,70 +135,19 @@ handle_cast(_Info, State) ->
 handle_info(timeout, #state{remote =  Remote} = State) when is_port(Remote) ->
     {stop, timeout, State};
 
+
 %% recv from client, and send to remote
-handle_info({tcp, Socket, Request}, #state{key=Key, socket=Socket, remote=Remote} = State) ->
-    io:format("Client Got: ~p~n", [Request]),
-
-    <<Header:2/binary, _Rest/binary>> = Request,
-
-    {ok, NewRemote} =
+%% TODO: Request is less than 2 bytes
+handle_info({tcp, Socket, <<Header:2/binary, _Rest/binary>> = Request}, #state{socket=Socket} = State) ->
     case lists:member(Header, ?HTTP_METHOD_HEADER) of
         true ->
-            % New Domain Request
-            case is_port(Remote) of
-                true ->
-                    io:format("New Request in an OLD Socket!!!~n", []);
-%%                     gen_tcp:close(Remote);
-                false ->
-                    ok
-            end,
-
-            {ok, R} = connect_to_remote(),
-            {ok, Target} = find_target(Request),
-            ok = gen_tcp:send(R, mp_crypto:encrypt(Key, Target)),
-            {ok, R};
+            % New Request In Same connection. HTTP/1.1
+            gen_server:cast(self(), {http_new, Socket, Request});
         false ->
-            case is_port(Remote) of
-                true ->
-                    {ok, Remote};
-                false ->
-                    {ok, R} = connect_to_remote(),
-                    {ok, Target} = find_target(Request),
-                    ok = gen_tcp:send(R, mp_crypto:encrypt(Key, Target)),
-                    {ok, R}
-            end
+            gen_server:cast(self(), {http_continue, Socket, Request})
     end,
+    {noreply, State, ?TIMEOUT};
 
-    NewRequest =
-    case lists:member(Header, ?HTTP_METHOD_HEADER) of
-        true ->
-            % GET XXX...
-            [RequestHeader, _XRest] = binary:split(Request, <<"\r\n">>),
-            [_One, Two, _Three] = binary:split(RequestHeader, <<" ">>, [global]),
-            TwoSplited = binary:split(Two, <<"/">>, [global]),
-            io:format("========~n", []),
-            io:format("~p~n", [TwoSplited]),
-            io:format("========~n", []),
-            case TwoSplited of
-                [_, _, _] ->
-                    <<_One/binary, <<" ">>/binary, <<"/">>/binary, <<" ">>/binary,  _Three/binary, <<"\r\n">>/binary, _XRest/binary>>;
-                [_, _, _ | Paths] ->
-                    Path =  lists:foldr(fun(Item, Acc) -> <<Item/binary, Acc/binary>> end, <<>>, lists:map(fun(Item) -> << <<"/">>/binary, Item/binary >> end, Paths)),
-                    <<_One/binary, <<" ">>/binary, Path/binary, <<" ">>/binary,  _Three/binary, <<"\r\n">>/binary,  _XRest/binary >>
-            end;
-        false ->
-            Request
-    end,
-
-
-
-    case gen_tcp:send(NewRemote, mp_crypto:encrypt(Key, NewRequest)) of
-        ok ->
-            inet:setopts(Socket, [{active, once}]),
-            {noreply, State#state{remote = NewRemote}, ?TIMEOUT};
-        {error, Error} ->
-            {stop, Error, State}
-    end;
 
 %% recv from remote, and send back to client
 handle_info({tcp, Socket, Response}, #state{key=Key, socket=Client} = State) when Socket /= Client ->
@@ -182,6 +159,7 @@ handle_info({tcp, Socket, Response}, #state{key=Key, socket=Client} = State) whe
         {error, Error} ->
             {stop, Error, State}
     end;
+
 
 handle_info({tcp_closed, Socket}, #state{socket = Client, remote = Remote} = State) ->
     case Socket /= Client andalso Socket /= Remote of
@@ -215,7 +193,6 @@ handle_info({tcp_error, Socket, Reason}, #state{socket = Client, remote = Remote
 %% @end
 %%--------------------------------------------------------------------
 terminate(_Reason, #state{socket=Socket, remote=Remote}) ->
-    io:format("~nTerminate... ~p~n~n", [_Reason]),
     case is_port(Socket) of
         true -> gen_tcp:close(Socket);
         false -> ok
@@ -249,43 +226,54 @@ connect_to_remote() ->
     gen_tcp:connect(Addr, RemotePort, [binary, {active, once}, {packet, 4}]).
 
 
-%% http proxy
-find_target(Request) ->
-    case find_target_of_http_request(Request) of
-        {ok, {Host, Port}} ->
-            DomainLen = length(Host),
-            Domain = list_to_binary(Host),
-            {ok, <<?DOMAIN, Port:16, DomainLen:8, Domain/binary>>};
-        {Error, Reason} ->
-            {Error, Reason}
-    end.
-
-
-find_target_of_http_request(Request) ->
+-spec parse_request(Request :: binary()) -> {ok, {Target :: binary(), NormalizedRequest :: binary()}} |
+                                             {error, Reason :: term()}.
+parse_request(Request) ->
     case binary:split(Request, <<"\r\n">>) of
         [Request] ->
-            % Need recv more...
-            {more, Request};
-        [RequestHeader, _Rest] ->
-            [_Method, Uri, _Version] = binary:split(RequestHeader, <<" ">>, [global]),
-            case parse_http_request(Uri) of
-                {ok, {Host, Port}} ->
-                    {ok, {Host, Port}};
-                {error, Reason} ->
-                    {error, Reason}
+            % TODO Need recv more...
+            {error, need_more};
+        [FirstLine, RestLines] ->
+            [Method, Uri, Version] = binary:split(FirstLine, <<" ">>, [global]),
+            try
+                {ok, {Host, Port}} = find_target(Uri),
+                {ok, NormalizedRequest} = normalize_reqeust(Method, Uri, Version, RestLines),
+
+                DomainLen = length(Host),
+                Domain = list_to_binary(Host),
+                {ok, <<?DOMAIN, Port:16, DomainLen:8, Domain/binary>>, NormalizedRequest}
+            catch
+                error: {badmatch, Reason}  ->
+                    {error, {badmatch, Reason}}
             end
     end.
 
-parse_http_request(Uri) ->
+
+find_target(Uri) ->
     case http_uri:parse(binary_to_list(Uri)) of
         {ok, {_Sheme, _UserInfo, Host, Port, _Path, _Query}} ->
             {ok, {Host, Port}};
         {ok, {_Sheme, _UserInfo, Host, Port, _Path, _Query, _Fragment}} ->
             {ok, {Host, Port}};
-        {error, {malformed_url, _, HostWithPort}} ->
-            % XXX workaround
-            [Host, Port] = string:tokens(HostWithPort, ":"),
-            {ok, {Host, list_to_integer(Port)}};
         {error, Reason} ->
             {error, Reason}
+    end.
+
+normalize_reqeust(Method, Uri, Version, RestLines) ->
+    UriSplited = binary:split(Uri, <<"/">>, [global]),
+
+    case UriSplited of
+        [_, _, _] ->
+            Normalized = <<Method/binary, <<" ">>/binary, <<"/">>/binary, <<" ">>/binary,  Version/binary, <<"\r\n">>/binary, RestLines/binary>>,
+            {ok, Normalized};
+        [_, _, _ | Paths] ->
+            Path =  lists:foldr(
+                fun(Item, Acc) -> <<Item/binary, Acc/binary>> end,
+                <<>>,
+                lists:map(fun(Item) -> << <<"/">>/binary, Item/binary >> end, Paths)
+            ),
+            Normalized = <<Method/binary, <<" ">>/binary, Path/binary, <<" ">>/binary,  Version/binary, <<"\r\n">>/binary,  RestLines/binary >>,
+            {ok, Normalized};
+        _ ->
+            {error, {split_failure, UriSplited}}
     end.
