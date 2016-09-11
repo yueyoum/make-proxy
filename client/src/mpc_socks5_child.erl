@@ -184,7 +184,6 @@ start_process(Socket, Key) ->
     {ok, RemotePort} = application:get_env(make_proxy_client, remote_port),
     {ok, Addr} = inet:getaddr(RemoteAddr, inet),
 
-    {ok, Target, Response} = find_target(Socket),
     case find_target(Socket) of
         {ok, Target, Response} ->
             EncryptedTarget = mp_crypto:encrypt(Key, Target),
