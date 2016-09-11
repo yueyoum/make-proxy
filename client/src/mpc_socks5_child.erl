@@ -178,30 +178,40 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 
 -spec(start_process(port(), nonempty_string()) -> {ok, port()} |
-{error, any()}).
+{error, term()}).
 start_process(Socket, Key) ->
     {ok, RemoteAddr} = application:get_env(make_proxy_client, remote_addr),
     {ok, RemotePort} = application:get_env(make_proxy_client, remote_port),
     {ok, Addr} = inet:getaddr(RemoteAddr, inet),
 
     {ok, Target, Response} = find_target(Socket),
-
-    EncryptedTarget = mp_crypto:encrypt(Key, Target),
-    case gen_tcp:connect(Addr, RemotePort, [binary, {active, false}, {packet, 4}]) of
-        {ok, RemoteSocket} ->
-            ok = gen_tcp:send(Socket, Response),
-            ok = gen_tcp:send(RemoteSocket, EncryptedTarget),
-            {ok, RemoteSocket};
-        {error, Error} ->
-            {error, Error}
+    case find_target(Socket) of
+        {ok, Target, Response} ->
+            EncryptedTarget = mp_crypto:encrypt(Key, Target),
+            case gen_tcp:connect(Addr, RemotePort, [binary, {active, false}, {packet, 4}]) of
+                {ok, RemoteSocket} ->
+                    ok = gen_tcp:send(Socket, Response),
+                    ok = gen_tcp:send(RemoteSocket, EncryptedTarget),
+                    {ok, RemoteSocket};
+                {error, Reason} ->
+                    {error, Reason}
+            end;
+        {error, Reason} ->
+            {error, Reason}
     end.
 
--spec find_target(port()) -> {ok, binary(), binary()}.
+-spec find_target(port()) -> {ok, binary(), binary()} | {error, term()}.
 find_target(Socket) ->
-    {ok, <<Ver:8>>} = gen_tcp:recv(Socket, 1),
-    find_target(Socket, Ver).
+    case gen_tcp:recv(Socket, 1) of
+        {ok, <<Ver:8>>} ->
+            find_target(Socket, Ver);
+        {error, closed} ->
+            {error, closed}
+    end.
 
--spec find_target(port(), integer()) -> {ok, binary(), binary()}.
+-spec find_target(port(), integer()) ->
+    {ok, binary(), binary()}
+    | {error, term()}.
 find_target(Socket, 4) ->
     %% http://www.openssh.com/txt/socks4.protocol
     {ok, <<CD:8>>} = gen_tcp:recv(Socket, 1),
@@ -246,7 +256,10 @@ find_target(Socket, 5) ->
     end,
 
     Response = <<5, 0, 0, 1, <<0, 0, 0, 0>>/binary, 0:16>>,
-    {ok, Target, Response}.
+    {ok, Target, Response};
+
+find_target(_, Num) ->
+    {error, <<"Socks Invalid Ver: ", Num>>}.
 
 -spec read_socks4_userid(port()) -> binary().
 read_socks4_userid(Socket) ->
