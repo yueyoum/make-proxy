@@ -1,19 +1,3 @@
-#! /bin/bash
+#!/bin/bash
 
-SELF=`readlink -f "$0"`
-WORKDIR=`dirname "$SELF"`
-
-cd "$WORKDIR"
-
-
-running=`ps -ef | grep make_proxy_client | wc -l`
-if [[ running -ge 2 ]]
-then
-    echo "alreay running"
-    exit -1
-else
-    erl -pa client/ebin -config client +K true -s make_proxy_client start -detached
-fi
-
-exit 0
-
+erl -pa ./_build/default/lib/*/ebin +K true -config app -s make_proxy start_client

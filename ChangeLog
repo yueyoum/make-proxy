@@ -1,3 +1,10 @@
+# 2016-10-14
+    * Version 4.0.0
+    * Using Ranch
+    * Using Rebar3
+    * Totally Rewrite
+    * Support HTTP, Socks4, Socks5
+
 # 2015-04-21
     * Version 3.1.0
     * Remove Acceptor Pool
@@ -8,12 +15,12 @@
     * Acceptor Pool
 
 # 2014-11-09
-	* Version 2.0.0
-	* Restruct the Application
-	* Using aes_cbc128 to encryt data
+    * Version 2.0.0
+    * Restruct the Application
+    * Using aes_cbc128 to encryt data
 
 # 2013-07-08
-	* Make project as an OTP Application
+    * Make project as an OTP Application
 
 # 2013-03-30
-	* Version 0.1.0, First release
+    * Version 0.1.0, First release

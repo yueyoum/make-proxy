@@ -3,9 +3,9 @@
          decrypt/2]).
 
 -define(DATALENGTH, 16).
--define(IV, <<"90de3456asxdfrtg">>).
+-define(IV, <<"^de$@#56*sxdfrtg">>).
 
--spec encrypt(nonempty_string(), binary()) -> <<_:_*8>>.
+-spec encrypt(nonempty_string(), binary()) -> binary().
 encrypt(Key, Binary) ->
     BinaryLength = byte_size(Binary),
     Rem = (BinaryLength + 4) rem ?DATALENGTH,
@@ -16,7 +16,7 @@ encrypt(Key, Binary) ->
     crypto:block_encrypt(aes_cbc128, Key, ?IV, FinalBinary).
 
 
--spec decrypt(nonempty_string(), <<_:_*8>>) -> {ok, binary()} |
+-spec decrypt(nonempty_string(), binary()) -> {ok, binary()} |
                                                {error, term()}.
 decrypt(Key, Binary) ->
     Data = crypto:block_decrypt(aes_cbc128, Key, ?IV, Binary),

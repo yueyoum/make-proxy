@@ -1,9 +1,4 @@
-#! /bin/bash
+#!/bin/bash
 
-SELF=`readlink -f "$0"`
-WORKDIR=`dirname "$SELF"`
+erl -pa ./_build/default/lib/*/ebin +K true -config app -s make_proxy start_server -deteched
 
-cd "$WORKDIR"
-
-erl -pa server/ebin -config server +K true -s make_proxy_server start -detached
-exit $?
