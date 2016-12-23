@@ -4,7 +4,7 @@
 
 with the great erlang, the project has the following features:
 
-*   support socks4,socks5,http proxy. (https not supported yet, but in progress)
+*   support http, https, socks4, socks5,http proxy.
 *   Robustness. never down.
 *   Scalable. handle thousands requests at the same time easily.
 *   Fast.
