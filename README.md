@@ -48,6 +48,5 @@ with the great erlang, the project has the following features:
 ## TODO
 
 1.  Support Socks5 Username/Password Authorize
-2.  Support HTTPS Proxy
+2.  Client & Server using ssl connection
 3.  Traffic Statistics
-

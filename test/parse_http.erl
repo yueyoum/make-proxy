@@ -36,3 +36,18 @@ parse_body_test() ->
     Req = mp_client_http:parse_http_request(Data),
     ?assertEqual(Req#http_request.status, done),
     ?assertEqual(Req#http_request.next_data, <<"GET /path/ HTTP">>).
+
+parse_1_test() ->
+    Data = <<"CONNECT www.baidu.com:443 HTTP/1.1\r\nHost: www.baidu.com:443\r\n\r\n">>,
+    Req = mp_client_http:parse_http_request(Data),
+    ?assertEqual(Req#http_request.status, done),
+    ?assertEqual(Req#http_request.host, "www.baidu.com"),
+    ?assertEqual(Req#http_request.port, 443).
+
+parse_2_test() ->
+    Data = <<"CONNECT www.baidu.com:443 HTTP/1.0\r\n\r\n">>,
+    Req = mp_client_http:parse_http_request(Data),
+    ?assertEqual(Req#http_request.status, done),
+    ?assertEqual(Req#http_request.method, <<"CONNECT">>),
+    ?assertEqual(Req#http_request.host, "www.baidu.com"),
+    ?assertEqual(Req#http_request.port, 443).

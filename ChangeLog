@@ -1,3 +1,8 @@
+# 2016-12-23
+    * Version 4.1.0
+    * Add Support HTTPS
+    * Support HTTP, HTTPS, Socks4, Socks5
+
 # 2016-10-14
     * Version 4.0.0
     * Using Ranch

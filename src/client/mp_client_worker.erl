@@ -66,7 +66,7 @@ init([Ref, Socket, Transport, _Opts]) ->
 
     State = #client{key = Key, ref = Ref, socket = Socket,
         transport = Transport, ok = OK, closed = Closed,
-        error = Error, buffer = <<>>},
+        error = Error, buffer = <<>>, keep_alive = false},
 
     {ok, State, 0}.
 
@@ -225,7 +225,7 @@ detect_protocol(<<Head:8, _Rest/binary>>) ->
     do_detect_protocol(Head, Protocols);
 
 detect_protocol(_) ->
-    {error, <<"got invalid data">>}.
+    {error, invalid_data}.
 
 -spec do_detect_protocol(byte(), list()) -> {ok, module()} | {error, term()}.
 do_detect_protocol(_, []) ->

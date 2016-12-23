@@ -16,9 +16,10 @@
     ok,
     closed,
     error,
-    remote :: gen_tcp:socket() | undefined,
+    remote :: port() | undefined,
     protocol :: module() | undefined,
-    buffer :: binary()
+    buffer :: binary(),
+    keep_alive = flase :: boolean()
 }).
 
 -type mp_target() :: {inet:ip_address() | nonempty_string(), inet:port_number()}.
