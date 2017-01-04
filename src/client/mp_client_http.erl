@@ -24,11 +24,11 @@ detect_head(H) ->
 
 request(Data, #client{remote = undefined, buffer = Buffer} = State) ->
     Data1 = <<Buffer/binary, Data/binary>>,
-    Req = parse_http_request(Data1),
+    {Data2, Req} = parse_http_request(Data1),
 
     case Req#http_request.status of
         done ->
-            do_communication(Data1, Req, State);
+            do_communication(Data2, Req, State);
         error ->
             {error, parse_http_request_error};
         more ->
@@ -69,13 +69,29 @@ do_communication(Data,
             {error, Reason}
     end.
 
--spec parse_http_request(binary()) -> #http_request{}.
+-spec parse_http_request(binary()) -> {binary(), #http_request{}}.
 parse_http_request(Data) ->
     parse_http_request(Data, #http_request{}).
 
--spec parse_http_request(binary(), #http_request{}) -> #http_request{}.
+-spec parse_http_request(binary(), #http_request{}) -> {binary(), #http_request{}}.
 parse_http_request(Data, Req) ->
-    do_parse(erlang:decode_packet(httph_bin, Data, []), Req).
+    case binary:split(Data, <<"\r\n">>) of
+        [Data] ->
+            Req1 = Req#http_request{status = more},
+            {Data, Req1};
+        [RequestLine, Headers] ->
+            {RequestLine1, Req1} = parse_request_line(RequestLine, Req),
+            Req2 =
+            case Req1#http_request.method of
+                <<"CONNECT">> ->
+                    Req1#http_request{status = done};
+                _ ->
+                    do_parse(erlang:decode_packet(httph_bin, Headers, []), Req1)
+            end,
+
+            Data1 = erlang:iolist_to_binary([RequestLine1, "\r\n", Headers]),
+            {Data1, Req2}
+    end.
 
 -spec do_parse(tuple(), #http_request{}) -> #http_request{}.
 do_parse({error, _}, Req) ->
@@ -83,22 +99,6 @@ do_parse({error, _}, Req) ->
 
 do_parse({more, _}, Req) ->
     Req#http_request{status = more};
-
-do_parse({ok, {http_error, Line}, Rest}, Req) ->
-    [Method, Target, _Version] = binary:split(Line, <<" ">>, [global]),
-    Req1 = Req#http_request{method = Method},
-
-    case Method of
-        <<"CONNECT">> ->
-            {Host, Port} = split_host_and_port(Target),
-            Req1#http_request{
-                status = done,
-                host = Host,
-                port = Port
-            };
-        _ ->
-            do_parse(erlang:decode_packet(httph_bin, Rest, []), Req)
-    end;
 
 do_parse({ok, http_eoh, Rest}, #http_request{content_length = 0} = Req) ->
     Req#http_request{
@@ -135,11 +135,11 @@ do_parse({ok, http_eoh, Rest},
             }
     end;
 
-do_parse({ok, {http_header, _Num, 'Host', _, Value}, Rest}, Req) ->
-    {Host, Port} = split_host_and_port(Value),
-
-    Req1 = Req#http_request{host = Host, port = Port},
-    do_parse(erlang:decode_packet(httph_bin, Rest, []), Req1);
+%%do_parse({ok, {http_header, _Num, 'Host', _, Value}, Rest}, Req) ->
+%%    {Host, Port} = split_host_and_port(Value),
+%%
+%%    Req1 = Req#http_request{host = Host, port = Port},
+%%    do_parse(erlang:decode_packet(httph_bin, Rest, []), Req1);
 
 do_parse({ok, {http_header, _Num, 'Content-Length', _, Value}, Rest}, Req) ->
     Req1 = Req#http_request{content_length = binary_to_integer(Value)},
@@ -148,12 +148,39 @@ do_parse({ok, {http_header, _Num, 'Content-Length', _, Value}, Rest}, Req) ->
 do_parse({ok, {http_header, _, _, _, _}, Rest}, Req) ->
     do_parse(erlang:decode_packet(httph_bin, Rest, []), Req).
 
+-spec parse_request_line(binary(), #http_request{}) -> {binary(), #http_request{}}.
+parse_request_line(RequestLine, Req) ->
+    [Method, URL, Version] = binary:split(RequestLine, <<" ">>, [global]),
+    {ok, P} = re:compile("^((?<Ascheme>http|https)://)?(?<Bhost>[^:|^/]+):?(?<Cport>\\d*)(?<Dpath>/?.*)"),
+    {match, [Scheme, Host, Port, Path]} = re:run(
+        URL,
+        P,
+        [{capture, all_names, binary}]
+    ),
 
--spec split_host_and_port(binary()) -> {nonempty_string(), integer()}.
-split_host_and_port(Target) ->
-    case binary:split(Target, <<":">>) of
-        [Target] ->
-            {binary_to_list(Target), 80};
-        [DomainBin, PortBin] ->
-            {binary_to_list(DomainBin), binary_to_integer(PortBin)}
-    end.
+    Port1 = find_port(Scheme, Port),
+    Path1 =
+        case Path of
+            <<>> -> <<"/">>;
+            _ -> Path
+        end,
+
+    RequestLine1 = erlang:iolist_to_binary([Method, " ", Path1, " ", Version]),
+
+    Req1 = Req#http_request{
+        method = Method,
+        host = binary_to_list(Host),
+        port = Port1
+    },
+
+    {RequestLine1, Req1}.
+
+-spec find_port(binary(), binary()) -> integer().
+find_port(<<"http">>, <<>>) ->
+    80;
+
+find_port(<<"https">>, <<>>) ->
+    443;
+
+find_port(_, PortBin) ->
+    binary_to_integer(PortBin).
